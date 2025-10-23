@@ -1,30 +1,45 @@
 # app/main.py
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# --- Load .env from the project root (folder that contains .env) ---
+ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(ROOT / ".env")
+
+# (optional) quick sanity log
+if not os.getenv("PG_DSN_READONLY"):
+    print("[WARN] PG_DSN_READONLY not found after load_dotenv")
+
+# --- Now import everything else ---
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from pathlib import Path
 from typing import List, Dict, Any, Optional
-from dotenv import load_dotenv
 
 from .ai_sql import propose_sql
 from .sql_validator import validate_sql
-
-load_dotenv()  # load OPENAI_API_KEY, OPENAI_MODEL
+from .db import run_select
 
 app = FastAPI(title="SSA Data Assistant")
 
-# Serve static
-static_dir = Path(__file__).parent / "static"
-app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# Serve the single-page app from the static directory
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-@app.get("/")
-def root_page():
-    return FileResponse(static_dir / "index.html")
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
 
-@app.get("/healthz")
-def healthz():
-    return {"status": "ok"}
+# --- optional debug endpoint to confirm env is loaded ---
+@app.get("/debug/env", include_in_schema=False)
+def debug_env():
+    return {
+        "has_PG_DSN_READONLY": bool(os.getenv("PG_DSN_READONLY")),
+        "has_OPENAI_API_KEY": bool(os.getenv("OPENAI_API_KEY")),
+    }
 
 class AskRequest(BaseModel):
     question: str
@@ -38,13 +53,14 @@ class AskResponse(BaseModel):
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
     try:
-        # 1) Ask the model for a SELECT query
         raw_sql = propose_sql(req.question, req.dataset)
-        # 2) Validate & enforce safety
         safe_sql = validate_sql(raw_sql)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {e}")
 
-    # For now we do NOT execute SQL; we’ll hook Postgres in Step 7.
-    # Return empty rows with the proposed SQL so you can see it in the UI.
-    return AskResponse(sql=safe_sql, columns=[], rows=[])
+    try:
+        columns, rows = run_select(safe_sql)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Database error: {e}")
+
+    return AskResponse(sql=safe_sql, columns=columns, rows=rows)
