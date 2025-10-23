@@ -36,34 +36,72 @@
   <pre id="sql"></pre>
   <div id="out"></div>
 
-  <script>
+    <script>
     const askBtn = document.getElementById('ask');
     const showSql = document.getElementById('showSql');
     const sqlEl = document.getElementById('sql');
     const out = document.getElementById('out');
     const statusEl = document.getElementById('status');
     const dl = document.getElementById('download');
+    const datasetEl = document.getElementById('dataset');
+    const qEl = document.getElementById('q');
 
     showSql.addEventListener('change', ()=> sqlEl.style.display = showSql.checked ? 'block' : 'none');
 
-    // Temporary: wire the Ask button to /healthz just to verify connectivity.
-    // In the next step we'll switch this to POST /ask.
+    function toCSV(cols, rows){
+      const esc = s => `"${String(s ?? "").replaceAll('"','""')}"`;
+      const head = cols.map(esc).join(',');
+      const body = rows.map(r => cols.map(c => esc(r[c])).join(',')).join('\n');
+      return head + '\n' + body;
+    }
+
     askBtn.onclick = async () => {
-      statusEl.textContent = 'Checking backend...';
+      statusEl.textContent = 'Thinking...';
       out.textContent = '';
       sqlEl.textContent = '';
       dl.disabled = true;
 
       try {
-        const res = await fetch('/healthz');
+        const res = await fetch('/ask', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ question: qEl.value, dataset: datasetEl.value })
+        });
         const data = await res.json();
-        statusEl.textContent = 'Backend OK';
-        out.innerHTML = `<p>Health check: <strong>${data.status}</strong></p>`;
+
+        if (!res.ok) {
+          throw new Error(data.detail || 'Request failed');
+        }
+
+        statusEl.textContent = 'Done';
+        // Show SQL if toggled
+        sqlEl.textContent = data.sql || '';
+
+        const cols = data.columns || [];
+        const rows = data.rows || [];
+        if (!rows.length) { out.textContent = 'No results.'; return; }
+
+        // Render table
+        out.innerHTML = '<table><thead><tr>' + cols.map(c=>`<th>${c}</th>`).join('') +
+          '</tr></thead><tbody>' +
+          rows.map(r=>'<tr>'+cols.map(c=>`<td>${r[c] ?? ''}</td>`).join('')+'</tr>').join('') +
+          '</tbody></table>';
+
+        // Enable CSV
+        dl.disabled = false;
+        dl.onclick = () => {
+          const csv = toCSV(cols, rows);
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+          a.download = 'results.csv';
+          a.click();
+        };
       } catch (e) {
-        statusEl.textContent = 'Error contacting backend';
+        statusEl.textContent = 'Error';
         out.textContent = e.message || String(e);
       }
     };
   </script>
+
 </body>
 </html>
