@@ -1,13 +1,20 @@
-from fastapi import FastAPI
+# app/main.py
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pathlib import Path
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
+
+from .ai_sql import propose_sql
+from .sql_validator import validate_sql
+
+load_dotenv()  # load OPENAI_API_KEY, OPENAI_MODEL
 
 app = FastAPI(title="SSA Data Assistant")
 
-# Serve /static/* and the root index.html
+# Serve static
 static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -19,34 +26,25 @@ def root_page():
 def healthz():
     return {"status": "ok"}
 
-# ===== NEW: models for /ask =====
 class AskRequest(BaseModel):
     question: str
-    dataset: str | None = None  # e.g., "clients", "consultants"
+    dataset: Optional[str] = None
 
 class AskResponse(BaseModel):
     sql: str
     columns: List[str]
     rows: List[Dict[str, Any]]
 
-# ===== NEW: stub /ask endpoint =====
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
-    # For now, return a tiny fake table and a pretend SQL query.
-    # This proves frontend<->backend wiring before we add the model + DB.
-    if (req.dataset or "").lower() == "clients":
-        columns = ["client_id", "name", "industry"]
-        rows = [
-            {"client_id": "1111-aaaa", "name": "Acme Corp", "industry": "Insurance"},
-            {"client_id": "2222-bbbb", "name": "Globex", "industry": "Finance"},
-        ]
-        sql = "SELECT client_id, name, industry FROM clients LIMIT 2;"
-    else:
-        columns = ["contact_id", "full_name", "email"]
-        rows = [
-            {"contact_id": "c-1001", "full_name": "Alex Rivera", "email": "alex@acme.com"},
-            {"contact_id": "c-1002", "full_name": "Sam Park", "email": "sam@globex.com"},
-        ]
-        sql = "SELECT contact_id, full_name, email FROM client_contacts LIMIT 2;"
+    try:
+        # 1) Ask the model for a SELECT query
+        raw_sql = propose_sql(req.question, req.dataset)
+        # 2) Validate & enforce safety
+        safe_sql = validate_sql(raw_sql)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {e}")
 
-    return AskResponse(sql=sql, columns=columns, rows=rows)
+    # For now we do NOT execute SQL; we’ll hook Postgres in Step 7.
+    # Return empty rows with the proposed SQL so you can see it in the UI.
+    return AskResponse(sql=safe_sql, columns=[], rows=[])
