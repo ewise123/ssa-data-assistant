@@ -12,10 +12,10 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."EngagementContact"(engagement_id, contact_id)
 
     Relationships:
-      - "{SCHEMA_NAME}"."ClientContact".client_id → "{SCHEMA_NAME}"."ClientList".client_id
-      - "{SCHEMA_NAME}"."ClientEngagement".client_id → "{SCHEMA_NAME}"."ClientList".client_id
-      - "{SCHEMA_NAME}"."EngagementContact".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
-      - "{SCHEMA_NAME}"."EngagementContact".contact_id → "{SCHEMA_NAME}"."ClientContact".contact_id
+      - "{SCHEMA_NAME}"."ClientContact".client_id -> "{SCHEMA_NAME}"."ClientList".client_id
+      - "{SCHEMA_NAME}"."ClientEngagement".client_id -> "{SCHEMA_NAME}"."ClientList".client_id
+      - "{SCHEMA_NAME}"."EngagementContact".engagement_id -> "{SCHEMA_NAME}"."ClientEngagement".engagement_id
+      - "{SCHEMA_NAME}"."EngagementContact".contact_id -> "{SCHEMA_NAME}"."ClientContact".contact_id
     """,
 
     # === DATASET: consultants ===
@@ -32,14 +32,14 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ResourceCapability"(resource_id, capability_id)
 
     Relationships:
-      - "{SCHEMA_NAME}"."ConsultantRoster".title_id → "{SCHEMA_NAME}"."TitleMaster".title_id
-      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster".title_id → "{SCHEMA_NAME}"."TitleMaster".title_id
-      - "{SCHEMA_NAME}"."ConsultantIC".consultant_id → "{SCHEMA_NAME}"."ConsultantRoster".consultant_id
-      - "{SCHEMA_NAME}"."ConsultantIC".ic_id → "{SCHEMA_NAME}"."ICRoster".ic_id
-      - "{SCHEMA_NAME}"."ResourceCapability".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
-      - "{SCHEMA_NAME}"."ResourceCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
-      - "{SCHEMA_NAME}"."ToolCapability".tool_id → "{SCHEMA_NAME}"."FirmTool".tool_id
-      - "{SCHEMA_NAME}"."ToolCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
+      - "{SCHEMA_NAME}"."ConsultantRoster".title_id -> "{SCHEMA_NAME}"."TitleMaster".title_id
+      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster".title_id -> "{SCHEMA_NAME}"."TitleMaster".title_id
+      - "{SCHEMA_NAME}"."ConsultantIC".consultant_id -> "{SCHEMA_NAME}"."ConsultantRoster".consultant_id
+      - "{SCHEMA_NAME}"."ConsultantIC".ic_id -> "{SCHEMA_NAME}"."ICRoster".ic_id
+      - "{SCHEMA_NAME}"."ResourceCapability".resource_id -> "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."ResourceCapability".capability_id -> "{SCHEMA_NAME}"."FirmCapabilities".capability_id
+      - "{SCHEMA_NAME}"."ToolCapability".tool_id -> "{SCHEMA_NAME}"."FirmTool".tool_id
+      - "{SCHEMA_NAME}"."ToolCapability".capability_id -> "{SCHEMA_NAME}"."FirmCapabilities".capability_id
     """,
 
     # === DATASET: engagements (projects) ===
@@ -56,16 +56,16 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ClientList"(client_id, client_firm_name)
 
     Relationships:
-      - "{SCHEMA_NAME}"."ProjectTeam".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
-      - "{SCHEMA_NAME}"."ProjectTeam".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
-      - "{SCHEMA_NAME}"."ProjectReviewForm".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
-      - "{SCHEMA_NAME}"."ReviewFormResource".review_form_id → "{SCHEMA_NAME}"."ProjectReviewForm".review_form_id
-      - "{SCHEMA_NAME}"."ReviewFormResource".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
-      - "{SCHEMA_NAME}"."ReviewFormCapability".review_form_id → "{SCHEMA_NAME}"."ProjectReviewForm".review_form_id
-      - "{SCHEMA_NAME}"."ReviewFormCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
-      - "{SCHEMA_NAME}"."EngagementCapability".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
-      - "{SCHEMA_NAME}"."EngagementCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
-      - "{SCHEMA_NAME}"."ClientEngagement".client_id → "{SCHEMA_NAME}"."ClientList".client_id
+      - "{SCHEMA_NAME}"."ProjectTeam".engagement_id -> "{SCHEMA_NAME}"."ClientEngagement".engagement_id
+      - "{SCHEMA_NAME}"."ProjectTeam".resource_id -> "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."ProjectReviewForm".engagement_id -> "{SCHEMA_NAME}"."ClientEngagement".engagement_id
+      - "{SCHEMA_NAME}"."ReviewFormResource".review_form_id -> "{SCHEMA_NAME}"."ProjectReviewForm".review_form_id
+      - "{SCHEMA_NAME}"."ReviewFormResource".resource_id -> "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."ReviewFormCapability".review_form_id -> "{SCHEMA_NAME}"."ProjectReviewForm".review_form_id
+      - "{SCHEMA_NAME}"."ReviewFormCapability".capability_id -> "{SCHEMA_NAME}"."FirmCapabilities".capability_id
+      - "{SCHEMA_NAME}"."EngagementCapability".engagement_id -> "{SCHEMA_NAME}"."ClientEngagement".engagement_id
+      - "{SCHEMA_NAME}"."EngagementCapability".capability_id -> "{SCHEMA_NAME}"."FirmCapabilities".capability_id
+      - "{SCHEMA_NAME}"."ClientEngagement".client_id -> "{SCHEMA_NAME}"."ClientList".client_id
     """,
 
     # === DATASET: training ===
@@ -80,11 +80,11 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."FirmTool"(tool_id, tool_name, vendor_name, tool_type, licensing, cost)
 
     Relationships:
-      - "{SCHEMA_NAME}"."CourseResource".course_id → "{SCHEMA_NAME}"."TrainingLearning".course_id
-      - "{SCHEMA_NAME}"."CourseResource".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
-      - "{SCHEMA_NAME}"."CourseCapability".course_id → "{SCHEMA_NAME}"."TrainingLearning".course_id
-      - "{SCHEMA_NAME}"."CourseCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
-      - "{SCHEMA_NAME}"."CourseTool".course_id → "{SCHEMA_NAME}"."TrainingLearning".course_id
-      - "{SCHEMA_NAME}"."CourseTool".tool_id → "{SCHEMA_NAME}"."FirmTool".tool_id
+      - "{SCHEMA_NAME}"."CourseResource".course_id -> "{SCHEMA_NAME}"."TrainingLearning".course_id
+      - "{SCHEMA_NAME}"."CourseResource".resource_id -> "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."CourseCapability".course_id -> "{SCHEMA_NAME}"."TrainingLearning".course_id
+      - "{SCHEMA_NAME}"."CourseCapability".capability_id -> "{SCHEMA_NAME}"."FirmCapabilities".capability_id
+      - "{SCHEMA_NAME}"."CourseTool".course_id -> "{SCHEMA_NAME}"."TrainingLearning".course_id
+      - "{SCHEMA_NAME}"."CourseTool".tool_id -> "{SCHEMA_NAME}"."FirmTool".tool_id
     """,
 }
