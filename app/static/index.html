@@ -1,107 +1,353 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html class="light" lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Company Data Assistant</title>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>SSA Project Data Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#DE4702",
+            "header-bg": "#003399",
+            "cool-gray": "#8CA3B2",
+            "sky-blue": "#0A7CC1",
+            "navy-slate": "#336179",
+            "sql-bg": "#F5F5F5",
+            "error-bg": "#FEE2E2",
+            "error-text": "#DC2626",
+            "background-light": "#FFFFFF",
+            "background-dark": "#1A202C",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"],
+            "mono": ["Fira Code", "monospace"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.75rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; }
-    textarea { width: 100%; height: 90px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
-    th, td { border: 1px solid #ddd; padding: 8px; }
-    #sql { background: #f7f7f7; padding: .5rem; font-family: ui-monospace, SFMono-Regular, monospace; display:none; white-space: pre-wrap; }
-    .row { display:flex; gap:.5rem; align-items:center; margin:.5rem 0; }
-    button { padding:.5rem .8rem; }
-    select { padding:.3rem; }
+    .material-symbols-outlined {
+      font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24
+    }
   </style>
 </head>
-<body>
-  <h2>Company Data Assistant</h2>
+<body class="bg-background-light dark:bg-background-dark font-display text-black dark:text-white transition-colors duration-300">
+  <div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+    <header class="bg-header-bg text-white shadow-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+          <div class="flex items-center gap-4">
+            <span class="material-symbols-outlined text-3xl">dataset</span>
+            <h1 class="text-xl font-bold">SSA Data Assistant</h1>
+          </div>
+          <button class="flex items-center justify-center rounded-full h-10 w-10 bg-white/20 hover:bg-white/30 transition-colors">
+            <span class="material-symbols-outlined text-white">dark_mode</span>
+          </button>
+        </div>
+      </div>
+    </header>
 
-  <div class="row">
-    <select id="dataset">
-      <option value="clients">Client & Contacts</option>
-      <option value="consultants">Consultants</option>
-      <option value="engagements">Engagements</option>
-    </select>
-    <label><input type="checkbox" id="showSql"> Show SQL</label>
-    <button id="download" disabled>Download CSV</button>
+    <main class="flex-grow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="bg-background-light dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+            <div class="md:col-span-3">
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Dataset</label>
+              <select class="form-select w-full h-12 px-4 rounded-lg border-cool-gray/50 focus:ring-sky-blue focus:border-sky-blue bg-white dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" id="dataset">
+                <option value="">Auto</option>
+                <option value="clients">Clients</option>
+                <option value="consultants">Consultants</option>
+                <option value="engagements">Engagements</option>
+                <option value="training">Training</option>
+              </select>
+            </div>
+            <div class="md:col-span-7">
+              <label class="sr-only" for="question">Ask a question</label>
+              <input class="form-input w-full h-12 px-4 rounded-lg border-cool-gray/50 focus:ring-sky-blue focus:border-sky-blue bg-white dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" id="question" placeholder="Ask a question about your data..." type="text"/>
+            </div>
+            <div class="md:col-span-2">
+              <button class="w-full flex items-center justify-center gap-2 h-12 px-5 rounded-lg bg-primary hover:bg-primary/90 text-white font-bold text-base transition-colors" id="submit-button" type="button">
+                <span class="material-symbols-outlined">send</span>
+                <span>Submit</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-6">
+            <div class="h-1 rounded-full bg-cool-gray/20 dark:bg-gray-700 overflow-hidden">
+              <div class="h-full bg-sky-blue transition-all duration-300" id="progress-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-8">
+          <div class="bg-error-bg border border-red-400 text-error-text px-4 py-3 rounded-lg relative hidden" id="error-banner" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline" id="error-message">Could not understand the question. Please try rephrasing.</span>
+          </div>
+        </div>
+
+        <div class="mt-8">
+          <div id="results-area">
+            <!-- Empty State -->
+            <div class="text-center py-16 text-cool-gray" id="empty-state">
+              <span class="material-symbols-outlined text-6xl">search</span>
+              <p class="mt-4 text-lg">Select a dataset and ask a question to see results.</p>
+            </div>
+
+            <!-- Populated State -->
+            <div class="hidden" id="populated-state">
+              <div class="mb-8">
+                <details class="group">
+                  <summary class="flex items-center cursor-pointer text-sky-blue hover:underline">
+                    <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">View SQL Query</h2>
+                    <span class="material-symbols-outlined ml-2 transition-transform group-open:rotate-180">expand_more</span>
+                  </summary>
+                  <div class="mt-4 bg-sql-bg dark:bg-gray-900/50 p-4 rounded-lg relative">
+                    <button class="absolute top-2 right-2 flex items-center gap-2 px-3 py-1.5 text-sm rounded-md bg-white/50 dark:bg-gray-700 hover:bg-white dark:hover:bg-gray-600 transition-colors" id="copy-sql-button" type="button">
+                      <span class="material-symbols-outlined text-base">content_copy</span>
+                      <span>Copy</span>
+                    </button>
+                    <pre><code class="language-sql font-mono text-sm text-gray-800 dark:text-gray-300" id="sql-output">-- SQL will appear here</code></pre>
+                  </div>
+                </details>
+              </div>
+
+              <div>
+                <h2 class="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-200">Results</h2>
+                <div class="overflow-x-auto rounded-lg border border-cool-gray/30">
+                  <table class="min-w-full divide-y divide-cool-gray/30" id="results-table">
+                    <thead class="bg-navy-slate sticky top-0 text-white" id="results-head"></thead>
+                    <tbody class="bg-white dark:bg-gray-800 divide-y divide-cool-gray/20" id="results-body">
+                      <tr>
+                        <td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300" colspan="5">No data yet.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="mt-4 text-sm text-gray-600 dark:text-gray-400 hidden" id="row-count"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div class="fixed bottom-8 right-8 flex items-center bg-navy-slate text-white text-sm font-bold px-4 py-3 rounded-lg shadow-lg hidden" id="toast">
+      <span class="material-symbols-outlined mr-2">check_circle</span>
+      <p>SQL copied to clipboard!</p>
+    </div>
   </div>
 
-  <textarea id="q" placeholder="e.g., Show the first 20 contacts at AIG"></textarea>
-  <div class="row">
-    <button id="ask">Ask</button>
-    <small id="status" aria-live="polite"></small>
-  </div>
+  <!-- Anime.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/animejs@3.2.1/lib/anime.min.js"></script>
 
-  <pre id="sql"></pre>
-  <div id="out"></div>
+  <!-- App logic + micro-animations -->
+  <script>
+    // Element refs
+    const questionInput = document.getElementById("question");
+    const datasetSelect = document.getElementById("dataset");
+    const submitButton = document.getElementById("submit-button");
+    const errorBanner = document.getElementById("error-banner");
+    const errorMessage = document.getElementById("error-message");
+    const emptyState = document.getElementById("empty-state");
+    const populatedState = document.getElementById("populated-state");
+    const sqlOutput = document.getElementById("sql-output");
+    const resultsHead = document.getElementById("results-head");
+    const resultsBody = document.getElementById("results-body");
+    const rowCount = document.getElementById("row-count");
+    const copySqlButton = document.getElementById("copy-sql-button");
+    const toast = document.getElementById("toast");
+    const progressBar = document.getElementById("progress-bar");
 
-    <script>
-    const askBtn = document.getElementById('ask');
-    const showSql = document.getElementById('showSql');
-    const sqlEl = document.getElementById('sql');
-    const out = document.getElementById('out');
-    const statusEl = document.getElementById('status');
-    const dl = document.getElementById('download');
-    const datasetEl = document.getElementById('dataset');
-    const qEl = document.getElementById('q');
+    // --- Anime helpers ---
+    const PREFERS_REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const A = (opts) => { if (!PREFERS_REDUCED && window.anime) window.anime(opts); };
 
-    showSql.addEventListener('change', ()=> sqlEl.style.display = showSql.checked ? 'block' : 'none');
+    // Button micro-bounce
+    submitButton.addEventListener('mousedown', () => {
+      A({ targets: '#submit-button', scale: [1, 0.98, 1], duration: 160, easing: 'easeOutQuad' });
+    });
 
-    function toCSV(cols, rows){
-      const esc = s => `"${String(s ?? "").replaceAll('"','""')}"`;
-      const head = cols.map(esc).join(',');
-      const body = rows.map(r => cols.map(c => esc(r[c])).join(',')).join('\n');
-      return head + '\n' + body;
+    // Error banner (shake)
+    function setError(message) {
+      if (message) {
+        errorMessage.textContent = message;
+        errorBanner.classList.remove("hidden");
+        A({
+          targets: '#error-banner',
+          translateX: [0, -6, 6, -4, 4, 0],
+          duration: 420,
+          easing: 'easeOutQuad'
+        });
+      } else {
+        errorBanner.classList.add("hidden");
+      }
     }
 
-    askBtn.onclick = async () => {
-      statusEl.textContent = 'Thinking...';
-      out.textContent = '';
-      sqlEl.textContent = '';
-      dl.disabled = true;
+    function setLoading(isLoading) {
+      submitButton.disabled = isLoading;
+      submitButton.classList.toggle("opacity-60", isLoading);
+    }
+
+    // Toast slide/fade
+    function showToast() {
+      toast.classList.remove("hidden");
+      A({ targets: '#toast', translateY: [16, 0], opacity: [0, 1], duration: 220, easing: 'easeOutCubic' });
+      setTimeout(() => {
+        A({
+          targets: '#toast',
+          translateY: [0, 16],
+          opacity: [1, 0],
+          duration: 220,
+          easing: 'easeInCubic',
+          complete: () => toast.classList.add('hidden')
+        });
+      }, 1800);
+    }
+
+    async function copySqlToClipboard() {
+      const sql = sqlOutput.textContent.trim();
+      if (!sql || sql.startsWith("-- SQL will")) return;
+      try {
+        await navigator.clipboard.writeText(sql);
+        showToast();
+      } catch (err) {
+        console.error("Clipboard copy failed", err);
+      }
+    }
+
+    function renderResults(columns, rows) {
+      resultsHead.innerHTML = "";
+      resultsBody.innerHTML = "";
+
+      if (!columns || columns.length === 0) {
+        resultsBody.innerHTML = '<tr><td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300" colspan="5">Query executed successfully but returned no columns.</td></tr>';
+        rowCount.textContent = "";
+        rowCount.classList.add("hidden");
+        return;
+      }
+
+      const headerRow = document.createElement("tr");
+      columns.forEach((col) => {
+        const th = document.createElement("th");
+        th.className = "px-6 py-3 text-left text-xs font-medium uppercase tracking-wider";
+        th.scope = "col";
+        th.textContent = col;
+        headerRow.appendChild(th);
+      });
+      resultsHead.appendChild(headerRow);
+
+      if (!rows || rows.length === 0) {
+        resultsBody.innerHTML = `<tr><td class="px-6 py-4 text-sm text-gray-500 dark:text-gray-300" colspan="${columns.length}">No rows returned.</td></tr>`;
+        rowCount.textContent = "No rows returned.";
+        rowCount.classList.remove("hidden");
+        return;
+      }
+
+      rows.forEach((row, rowIdx) => {
+        const tr = document.createElement("tr");
+        tr.className = rowIdx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-900/40";
+        columns.forEach((col) => {
+          const td = document.createElement("td");
+          td.className = "px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200";
+          const value = row[col];
+          td.textContent = value === null || value === undefined ? "" : value;
+          tr.appendChild(td);
+        });
+        resultsBody.appendChild(tr);
+      });
+
+      rowCount.textContent = `${rows.length} row${rows.length === 1 ? "" : "s"} returned.`;
+      rowCount.classList.remove("hidden");
+
+      // Animate rows in
+      A({
+        targets: '#results-body tr',
+        opacity: [0, 1],
+        translateY: [8, 0],
+        delay: window.anime ? window.anime.stagger(20) : 0,
+        duration: 280,
+        easing: 'easeOutQuad'
+      });
+    }
+
+    async function submitQuestion() {
+      const question = questionInput.value.trim();
+      const dataset = datasetSelect.value || null;
+
+      if (!question) {
+        setError("Please enter a question before submitting.");
+        return;
+      }
+
+      setError("");
+      setLoading(true);
+
+      // Progress: 0% -> 65%
+      A({ targets: '#progress-bar', width: ['0%', '65%'], duration: 450, easing: 'easeInOutCubic' });
 
       try {
-        const res = await fetch('/ask', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ question: qEl.value, dataset: datasetEl.value })
+        const response = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, dataset }),
         });
-        const data = await res.json();
+        const payload = await response.json();
 
-        if (!res.ok) {
-          throw new Error(data.detail || 'Request failed');
+        if (!response.ok) {
+          throw new Error(payload?.detail || "The assistant could not process your request.");
         }
 
-        statusEl.textContent = 'Done';
-        // Show SQL if toggled
-        sqlEl.textContent = data.sql || '';
+        sqlOutput.textContent = payload.sql || "-- No SQL generated.";
+        // Subtle SQL update pulse
+        A({ targets: '#sql-output', backgroundColor: ['#fff7e6', 'transparent'], duration: 600, easing: 'easeOutQuad' });
 
-        const cols = data.columns || [];
-        const rows = data.rows || [];
-        if (!rows.length) { out.textContent = 'No results.'; return; }
+        renderResults(payload.columns || [], payload.rows || []);
 
-        // Render table
-        out.innerHTML = '<table><thead><tr>' + cols.map(c=>`<th>${c}</th>`).join('') +
-          '</tr></thead><tbody>' +
-          rows.map(r=>'<tr>'+cols.map(c=>`<td>${r[c] ?? ''}</td>`).join('')+'</tr>').join('') +
-          '</tbody></table>';
+        emptyState.classList.add("hidden");
+        populatedState.classList.remove("hidden");
 
-        // Enable CSV
-        dl.disabled = false;
-        dl.onclick = () => {
-          const csv = toCSV(cols, rows);
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-          a.download = 'results.csv';
-          a.click();
-        };
-      } catch (e) {
-        statusEl.textContent = 'Error';
-        out.textContent = e.message || String(e);
+        // Progress: 65% -> 100%
+        A({ targets: '#progress-bar', width: ['65%', '100%'], duration: 300, easing: 'easeOutCubic' });
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Unexpected error. Please try again.");
+      } finally {
+        setLoading(false);
+        // After a short hold, slide back to 0%
+        setTimeout(() => {
+          A({ targets: '#progress-bar', width: '0%', duration: 350, easing: 'easeInCubic' });
+        }, 400);
       }
-    };
-  </script>
+    }
 
+    submitButton.addEventListener("click", submitQuestion);
+    questionInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submitQuestion();
+      }
+    });
+    copySqlButton.addEventListener("click", copySqlToClipboard);
+  </script>
 </body>
 </html>
