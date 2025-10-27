@@ -1,11 +1,15 @@
 # app/ai_sql.py
 import os
-from typing import Optional, List, Union
-from openai import OpenAI
-from openai.types.chat import ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam, ChatCompletionAssistantMessageParam
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-# Local imports
-from .catalog import Catalog, suggest_schema_snippet
+from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionUserMessageParam,
+)
+
+from .catalog import Catalog, SchemaHint, suggest_schema_snippet
 from .schema_hints import SCHEMA_HINTS, SCHEMA_NAME  # reuse constant for schema name
 
 # === SYSTEM PROMPT ===
@@ -49,7 +53,7 @@ WHERE tm.title ILIKE '%Managing Director%' OR cr.role_rank ILIKE '%MD%'
 LIMIT 100'''
     },
 
-    # --- Tools (FirmTool → ToolCapability → FirmCapabilities → ResourceCapability → Resources) ---
+    # --- Tools ---
     {
         "user": "Show resources who use the tool Power BI.",
         "assistant": f'''SELECT r.name AS resource_name, r.role_rank, ft.tool_name
@@ -62,7 +66,7 @@ WHERE ft.tool_name ILIKE '%power%bi%'
 LIMIT 100'''
     },
 
-    # --- Capabilities (ResourceCapability → Resources) ---
+    # --- Capabilities ---
     {
         "user": "List resources with the capability Control Tower.",
         "assistant": f'''SELECT r.name AS resource_name, r.role_rank, fc.capability_name
@@ -73,7 +77,7 @@ WHERE fc.capability_name ILIKE '%control tower%'
 LIMIT 100'''
     },
 
-    # --- Engagements: simple join to client ---
+    # --- Engagements ---
     {
         "user": "Show project_name, status, and client_firm_name.",
         "assistant": f'''SELECT ce.project_name, ce.status, cl.client_firm_name
@@ -83,7 +87,7 @@ JOIN "{SCHEMA_NAME}"."ClientList" cl
 LIMIT 100'''
     },
 
-    # --- Training: courses with tools/capabilities ---
+    # --- Training ---
     {
         "user": "List course_name and link_to_course.",
         "assistant": f'SELECT course_name, link_to_course FROM "{SCHEMA_NAME}"."TrainingLearning" LIMIT 100'
@@ -98,25 +102,48 @@ LIMIT 100'''
     },
 ]
 
-# === MESSAGE BUILDER (with dynamic catalog awareness) ===
+
+def _ensure_hint(
+    question: str,
+    dataset: Optional[str],
+    catalog: Optional[Catalog],
+    config: Optional[Dict[str, Any]],
+    disambiguation: Optional[Dict[str, Any]],
+    hint: Optional[SchemaHint],
+) -> Tuple[Optional[SchemaHint], Optional[str]]:
+    if hint is None and catalog:
+        hint = suggest_schema_snippet(
+            question,
+            catalog,
+            config=config,
+            disambiguation_rules=disambiguation,
+        )
+
+    snippet = hint.snippet if hint else None
+    if snippet is None and dataset:
+        fallback = SCHEMA_HINTS.get(dataset.lower())
+        snippet = fallback.strip() if fallback else None
+    return hint, snippet
+
+
 def _build_messages(
     question: str,
     dataset: Optional[str],
-    catalog: Optional[Catalog]
-) -> List[
-    Union[
+    catalog: Optional[Catalog],
+    config: Optional[Dict[str, Any]],
+    disambiguation: Optional[Dict[str, Any]],
+    schema_hint: Optional[SchemaHint],
+    repair_context: Optional[str] = None,
+) -> Tuple[
+    List[Union[
         ChatCompletionSystemMessageParam,
         ChatCompletionUserMessageParam,
         ChatCompletionAssistantMessageParam
-    ]
+    ]],
+    Optional[SchemaHint],
 ]:
-    """
-    Build the full chat history sent to the OpenAI API:
-    - system rules
-    - dynamic schema hint (from catalog)
-    - few-shot examples
-    - user question
-    """
+    hint, snippet = _ensure_hint(question, dataset, catalog, config, disambiguation, schema_hint)
+
     messages: List[
         Union[
             ChatCompletionSystemMessageParam,
@@ -127,49 +154,93 @@ def _build_messages(
         ChatCompletionSystemMessageParam(role="system", content=_SYSTEM)
     ]
 
-    # Add dynamic schema hint (auto-detected tables & joins)
-    if catalog:
-        snippet = suggest_schema_snippet(question, catalog)
+    if snippet:
         messages.append(
             ChatCompletionSystemMessageParam(
                 role="system",
                 content=f"Schema hint (real database structure):\n{snippet}"
             )
         )
-    else:
-        # fallback to static hints by dataset
-        hint = SCHEMA_HINTS.get((dataset or "").lower(), "")
-        if hint:
-            messages.append(
-                ChatCompletionSystemMessageParam(
-                    role="system",
-                    content=f"Schema hint:\n{hint.strip()}"
-                )
-            )
 
-    # few-shot examples
+    if hint and hint.disambiguation_datasets:
+        dataset_note = ", ".join(hint.disambiguation_datasets)
+        messages.append(
+            ChatCompletionSystemMessageParam(
+                role="system",
+                content=f"Disambiguation: prioritize datasets {dataset_note}."
+            )
+        )
+
+    if hint and hint.primary_intent and config:
+        join_map = (config.get("join_map", {}) or {}).get("paths", [])
+        for path in join_map:
+            if path.get("intent") == hint.primary_intent:
+                intent_lines = [
+                    f"Intent: {path.get('intent')}",
+                    f"Description: {path.get('description', '').strip()}",
+                    f"Tables: {', '.join(path.get('tables', []))}",
+                ]
+                joins = path.get("joins") or []
+                if joins:
+                    join_str = "; ".join(" = ".join(pair) for pair in joins)
+                    intent_lines.append(f"Joins: {join_str}")
+                filters = path.get("canonical_filters") or []
+                if filters:
+                    filter_str = "; ".join(
+                        f"{flt.get('table')}.{flt.get('column')} {flt.get('preferred_filter')} {flt.get('pattern')}"
+                        for flt in filters
+                    )
+                    intent_lines.append(f"Canonical filters: {filter_str}")
+                defaults = path.get("result_defaults") or []
+                if defaults:
+                    intent_lines.append(f"Default columns: {', '.join(defaults)}")
+                messages.append(
+                    ChatCompletionSystemMessageParam(
+                        role="system",
+                        content="\n".join(intent_lines)
+                    )
+                )
+                break
+
+    if repair_context:
+        messages.append(
+            ChatCompletionSystemMessageParam(
+                role="system",
+                content=repair_context.strip()
+            )
+        )
+
     for ex in _FEWSHOTS:
         messages.append(ChatCompletionUserMessageParam(role="user", content=ex["user"]))
         messages.append(ChatCompletionAssistantMessageParam(role="assistant", content=ex["assistant"]))
 
-    # user question
     messages.append(ChatCompletionUserMessageParam(role="user", content=question))
-    return messages
+    return messages, hint
 
-# === MAIN FUNCTION ===
+
 def propose_sql(
     question: str,
     dataset: Optional[str] = None,
-    catalog: Optional[Catalog] = None
-) -> str:
+    catalog: Optional[Catalog] = None,
+    config: Optional[Dict[str, Any]] = None,
+    schema_hint: Optional[SchemaHint] = None,
+    disambiguation: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, Optional[SchemaHint]]:
     """
     Generate SQL for the user's natural-language question.
-    Uses the OpenAI API, with dynamic schema hints from the catalog.
+    Returns the SQL and the schema hint used (for downstream repair logic).
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    messages = _build_messages(question, dataset, catalog)
+    messages, hint = _build_messages(
+        question,
+        dataset,
+        catalog,
+        config,
+        disambiguation,
+        schema_hint,
+    )
 
     try:
         resp = client.chat.completions.create(
@@ -177,47 +248,62 @@ def propose_sql(
             messages=messages,
             temperature=0
         )
-        content = resp.choices[0].message.content
-        sql = content.strip() if content else ""
-        return sql
-    except Exception as e:
-        raise RuntimeError(f"OpenAI API error: {e}")
+    except Exception as exc:
+        raise RuntimeError(f"OpenAI API error: {exc}") from exc
 
-# app/ai_sql.py (add near bottom)
+    content = resp.choices[0].message.content if resp.choices else ""
+    sql = content.strip() if content else ""
+    return sql, hint
+
+
 def propose_sql_repair(
     question: str,
     previous_sql: str,
-    db_error: str,
+    reason: str,
     dataset: Optional[str],
-    catalog: Optional[Catalog]
-) -> str:
+    catalog: Optional[Catalog],
+    config: Optional[Dict[str, Any]],
+    schema_hint: Optional[SchemaHint],
+    disambiguation: Optional[Dict[str, Any]],
+) -> Tuple[str, Optional[SchemaHint]]:
     """
-    Ask the model to repair a failing SQL query using the DB error + catalog snippet.
-    Returns a fresh SQL string.
+    Ask the model to repair an unsatisfactory SQL query using DB feedback and schema metadata.
+    Returns the repaired SQL (or empty string) and the schema hint used.
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    # Build a fresh message stack with the same rules & dynamic schema hint
-    messages = _build_messages(question, dataset, catalog)
-
-    # Add a targeted repair instruction (keeps it concise and focused)
-    repair_note = (
-        "The previous SQL failed. Read the error and produce ONE corrected SELECT:\n"
-        f"Previous SQL:\n{previous_sql}\n\n"
-        f"Database error:\n{db_error}\n\n"
-        "Constraints:\n"
-        "- Use ONLY tables/columns in the schema hint above.\n"
-        "- Use schema-qualified, double-quoted identifiers.\n"
-        "- Include LIMIT 100.\n"
+    repair_context = (
+        "The previous SQL did not produce useful results. Read the details below and write ONE corrected SELECT.\n"
+        f"Original SQL:\n{previous_sql}\n\n"
+        f"Issue: {reason}\n"
+        "Requirements:\n"
+        "- Use ONLY tables/columns from the schema hint.\n"
+        "- Keep schema-qualified identifiers with double quotes.\n"
+        "- Prefer joins and filters suggested by the intent guidance.\n"
+        "- Include LIMIT 100 unless a smaller limit is explicitly required.\n"
         "Return ONLY the SQL."
     )
-    messages.append(ChatCompletionUserMessageParam(role="user", content=repair_note))
 
-    resp = client.chat.completions.create(
-        model=model,
-        messages=messages,
-        temperature=0
+    messages, hint = _build_messages(
+        question,
+        dataset,
+        catalog,
+        config,
+        disambiguation,
+        schema_hint,
+        repair_context=repair_context,
     )
-    content = resp.choices[0].message.content
-    return content.strip() if content else ""
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0
+        )
+    except Exception as exc:
+        raise RuntimeError(f"OpenAI API error: {exc}") from exc
+
+    content = resp.choices[0].message.content if resp.choices else ""
+    sql = content.strip() if content else ""
+    return sql, hint

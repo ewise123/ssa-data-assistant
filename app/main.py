@@ -2,7 +2,7 @@
 import os
 import socket
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -16,7 +16,14 @@ load_dotenv(ROOT / ".env")
 
 # --- Local imports AFTER env vars are loaded ---
 from .ai_sql import propose_sql, propose_sql_repair
-from .catalog import Catalog, CatalogLoadError, load_catalog, suggest_schema_snippet
+from .catalog import Catalog, CatalogLoadError, SchemaHint, load_catalog, suggest_schema_snippet
+from .config_loader import (
+    load_aliases,
+    load_allowed_values,
+    load_column_semantics,
+    load_disambiguation_rules,
+    load_join_map,
+)
 from .db import describe_dsn, run_select
 from .sql_validator import validate_sql
 
@@ -26,9 +33,16 @@ app = FastAPI(title="SSA Data Assistant")
 # Schema to introspect (default to your schema)
 SCHEMA = os.getenv("PG_SEARCH_PATH", "Project_Master_Database")
 
-# Global in-memory catalog
+# Global in-memory catalog and config
 CATALOG: Optional[Catalog] = None
 CATALOG_ERROR: Optional[str] = None
+CONFIG: Dict[str, Any] = {
+    "aliases": {},
+    "join_map": {"paths": []},
+    "semantics": {},
+    "allowed": {},
+    "disambiguation": {"rules": []},
+}
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -51,11 +65,11 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
-
-# --- Load catalog on startup ---
+# --- Load catalog + config on startup ---
 @app.on_event("startup")
 def _load_catalog_on_start() -> None:
-    global CATALOG, CATALOG_ERROR
+    global CATALOG, CATALOG_ERROR, CONFIG
+    # Load catalog
     try:
         CATALOG = load_catalog(SCHEMA)
         CATALOG_ERROR = None
@@ -69,6 +83,32 @@ def _load_catalog_on_start() -> None:
         CATALOG_ERROR = str(exc)
         print(f"[catalog] FAILED to load: {CATALOG_ERROR}")
 
+    # Load configuration layers
+    try:
+        aliases = load_aliases()
+        join_map = load_join_map()
+        semantics = load_column_semantics()
+        allowed = load_allowed_values()
+        disambig = load_disambiguation_rules()
+        CONFIG = {
+            "aliases": aliases,
+            "join_map": join_map,
+            "semantics": semantics,
+            "allowed": allowed,
+            "disambiguation": disambig,
+        }
+        print(
+            "[config] Loaded aliases=%d join_paths=%d semantics=%d allowed=%d disambiguation_rules=%d"
+            % (
+                sum(len(v) for v in aliases.values()),
+                len(join_map.get("paths", [])),
+                sum(len(v) for v in semantics.values()),
+                sum(len(v) for v in allowed.values()),
+                len(disambig.get("rules", [])),
+            )
+        )
+    except Exception as exc:
+        print(f"[config] Failed to load extended config: {exc}")
 
 # --- optional debug endpoint to confirm env is loaded ---
 @app.get("/debug/env", include_in_schema=False)
@@ -80,6 +120,7 @@ def debug_env():
         "schema": SCHEMA,
         "catalog_loaded": bool(CATALOG),
         "catalog_error": CATALOG_ERROR,
+        "config_loaded": bool(CONFIG.get("join_map", {}).get("paths")),
         "dsn": {
             key: info[key]
             for key in ("host", "port", "user", "dbname", "sslmode")
@@ -122,8 +163,34 @@ def debug_dns():
 def debug_router(q: str):
     if not CATALOG:
         return {"error": "catalog not loaded"}
-    snippet = suggest_schema_snippet(q, CATALOG)
-    return {"snippet": snippet}
+    hint = suggest_schema_snippet(
+        q,
+        CATALOG,
+        config=CONFIG,
+        disambiguation_rules=CONFIG.get("disambiguation"),
+    )
+    return {
+        "snippet": hint.snippet,
+        "tables": hint.tables,
+        "intents": hint.intents,
+        "datasets": hint.disambiguation_datasets,
+    }
+
+
+@app.get("/debug/config", include_in_schema=False)
+def debug_config():
+    aliases = CONFIG.get("aliases", {})
+    semantics = CONFIG.get("semantics", {})
+    allowed = CONFIG.get("allowed", {})
+    join_map = CONFIG.get("join_map", {})
+    disambig = CONFIG.get("disambiguation", {})
+    return {
+        "aliases": {name: len(entries) for name, entries in aliases.items()},
+        "join_paths": len(join_map.get("paths", [])),
+        "semantics_tables": len(semantics),
+        "allowed_columns": len(allowed),
+        "disambiguation_rules": len(disambig.get("rules", [])),
+    }
 
 
 # --- API models ---
@@ -142,62 +209,77 @@ class AskResponse(BaseModel):
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest):
     active_catalog = CATALOG
+    disambiguation = CONFIG.get("disambiguation")
+    schema_hint: Optional[SchemaHint] = None
 
-    # --- First attempt ---
+    if active_catalog:
+        schema_hint = suggest_schema_snippet(
+            req.question,
+            active_catalog,
+            config=CONFIG,
+            disambiguation_rules=disambiguation,
+        )
+
+    def _repair(reason: str, last_sql: str) -> Tuple[str, List[str], List[Dict[str, Any]]]:
+        nonlocal schema_hint
+        repaired_sql, new_hint = propose_sql_repair(
+            req.question,
+            last_sql,
+            reason,
+            req.dataset,
+            active_catalog,
+            CONFIG,
+            schema_hint,
+            disambiguation,
+        )
+        if new_hint:
+            schema_hint = new_hint
+        validated_sql = validate_sql(repaired_sql)
+        cols, rows = run_select(validated_sql)
+        return validated_sql, cols, rows
+
+    # 1. Generate SQL
     try:
-        raw_sql = propose_sql(req.question, req.dataset, active_catalog)
+        raw_sql, schema_hint = propose_sql(
+            req.question,
+            dataset=req.dataset,
+            catalog=active_catalog,
+            config=CONFIG,
+            schema_hint=schema_hint,
+            disambiguation=disambiguation,
+        )
         safe_sql = validate_sql(raw_sql)
     except Exception as exc:
-        # Try a repair if validator fails
-        try:
-            repaired = propose_sql_repair(
-                req.question,
-                raw_sql if 'raw_sql' in locals() else '',
-                f"Validator error: {exc}",
-                req.dataset,
-                active_catalog
-            )
-            safe_sql = validate_sql(repaired)
-        except Exception as e2:
-            raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {e2}")
+        raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {exc}")
 
-    # --- Execute first attempt ---
+    # 2. Execute first attempt
     try:
         columns, rows = run_select(safe_sql)
-        return AskResponse(sql=safe_sql, columns=columns, rows=rows)
-    except Exception as e:
-        msg = str(e)
-        retriable = any(
-            s in msg.lower()
-            for s in [
-                "relation", "does not exist", "column",
-                "type", "operator does not exist", "function", "syntax error"
-            ]
-        )
-        if not retriable:
-            raise HTTPException(status_code=400, detail=f"Database error: {e}")
-
-        # --- First repair attempt ---
+    except Exception as exc:
+        err_text = str(exc)
+        print(f"[ask] execution error -> attempting repair ({err_text})")
         try:
-            repaired = propose_sql_repair(req.question, safe_sql, msg, req.dataset, active_catalog)
-            safe_sql_2 = validate_sql(repaired)
-            cols2, rows2 = run_select(safe_sql_2)
-            return AskResponse(sql=safe_sql_2, columns=cols2, rows=rows2)
-        except Exception as e2:
-            # --- Second (final) repair attempt ---
-            try:
-                repaired2 = propose_sql_repair(
-                    req.question,
-                    repaired if 'repaired' in locals() else safe_sql,
-                    str(e2),
-                    req.dataset,
-                    active_catalog
-                )
-                safe_sql_3 = validate_sql(repaired2)
-                cols3, rows3 = run_select(safe_sql_3)
-                return AskResponse(sql=safe_sql_3, columns=cols3, rows=rows3)
-            except Exception as e3:
-                raise HTTPException(status_code=400, detail=f"Database error after retries: {e3}")
+            safe_sql, columns, rows = _repair(err_text, safe_sql)
+            print("[ask] repair succeeded after execution error")
+        except Exception as repair_exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Database error: {err_text}; repair failed: {repair_exc}",
+            )
+
+    # 3. If the query ran but returned no rows, try one guided repair
+    if active_catalog and schema_hint and len(rows) == 0:
+        print(f"[ask] no rows returned; attempting repair via intent '{schema_hint.primary_intent}'")
+        try:
+            safe_sql, new_cols, new_rows = _repair("no rows returned", safe_sql)
+            if new_rows:
+                print("[ask] repair produced rows; returning repaired result")
+                return AskResponse(sql=safe_sql, columns=new_cols, rows=new_rows)
+            print("[ask] repair still returned zero rows; returning original result")
+        except Exception as repair_exc:
+            print(f"[ask] repair attempt failed: {repair_exc}")
+
+    return AskResponse(sql=safe_sql, columns=columns, rows=rows)
 
 
 @app.get("/debug/db", include_in_schema=False)

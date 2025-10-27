@@ -1,0 +1,34 @@
+{
+  "rules": [
+    {
+      "if_contains": ["power bi", "powerbi", "excel", "powerpoint", "disco"],
+      "dataset": "consultants",
+      "prefer_tables": ["FirmTool", "ToolCapability", "FirmCapabilities", "ResourceCapability", "ConsolidatedResourceRoster"]
+    },
+    {
+      "if_contains": ["control tower", "data analysis", "process mining", "edi", "footprint assessment", "vendor management", "real estate consolidation", "target operating model", "spans & layers", "spans and layers"],
+      "dataset": "consultants",
+      "prefer_tables": ["FirmCapabilities", "ResourceCapability", "ConsolidatedResourceRoster"]
+    },
+    {
+      "if_contains": ["md", "managing director", "managing directors"],
+      "dataset": "consultants",
+      "prefer_tables": ["ConsultantRoster", "TitleMaster"]
+    },
+    {
+      "if_contains": ["contact", "contacts", "email", "emails"],
+      "dataset": "clients",
+      "prefer_tables": ["ClientContact", "ClientList"]
+    },
+    {
+      "if_contains": ["project", "engagement", "team", "milestones", "deliverables", "case study", "case studies"],
+      "dataset": "engagements",
+      "prefer_tables": ["ClientEngagement", "ProjectTeam", "ConsolidatedResourceRoster", "ClientList"]
+    },
+    {
+      "if_contains": ["course", "training", "learning path"],
+      "dataset": "training",
+      "prefer_tables": ["TrainingLearning", "CourseCapability", "CourseTool", "FirmCapabilities", "FirmTool"]
+    }
+  ]
+}
