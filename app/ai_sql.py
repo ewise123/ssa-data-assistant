@@ -23,8 +23,8 @@ Rules:
 - PostgreSQL dialect. Return ONLY the SQL (no commentary)."""
 
 # === FEW-SHOT EXAMPLES ===
-_FEWSHOTS: List[dict] = [
-    # --- Clients dataset ---
+_FEWSHOTS = [
+    # --- Clients & Contacts ---
     {
         "user": "List client firm names and industries.",
         "assistant": f'SELECT client_firm_name, industry FROM "{SCHEMA_NAME}"."ClientList" LIMIT 100'
@@ -38,21 +38,42 @@ JOIN "{SCHEMA_NAME}"."ClientContact" cc
 LIMIT 100'''
     },
 
-    # --- Consultants dataset ---
+    # --- Consultants: Managing Directors ---
     {
-        "user": "Show consultant names, titles, and phone numbers.",
+        "user": "List managing directors with phone numbers.",
         "assistant": f'''SELECT cr.name, tm.title, cr.phone_number
 FROM "{SCHEMA_NAME}"."ConsultantRoster" cr
 LEFT JOIN "{SCHEMA_NAME}"."TitleMaster" tm
   ON tm.title_id = cr.title_id
+WHERE tm.title ILIKE '%Managing Director%' OR cr.role_rank ILIKE '%MD%'
 LIMIT 100'''
     },
+
+    # --- Tools (FirmTool → ToolCapability → FirmCapabilities → ResourceCapability → Resources) ---
     {
-        "user": "List IC names and emails.",
-        "assistant": f'SELECT name, email FROM "{SCHEMA_NAME}"."ICRoster" LIMIT 100'
+        "user": "Show resources who use the tool Power BI.",
+        "assistant": f'''SELECT r.name AS resource_name, r.role_rank, ft.tool_name
+FROM "{SCHEMA_NAME}"."FirmTool" ft
+JOIN "{SCHEMA_NAME}"."ToolCapability" tc   ON tc.tool_id = ft.tool_id
+JOIN "{SCHEMA_NAME}"."FirmCapabilities" fc ON fc.capability_id = tc.capability_id
+JOIN "{SCHEMA_NAME}"."ResourceCapability" rc ON rc.capability_id = fc.capability_id
+JOIN "{SCHEMA_NAME}"."ConsolidatedResourceRoster" r ON r.resource_id = rc.resource_id
+WHERE ft.tool_name ILIKE '%power%bi%'
+LIMIT 100'''
     },
 
-    # --- Engagements dataset ---
+    # --- Capabilities (ResourceCapability → Resources) ---
+    {
+        "user": "List resources with the capability Control Tower.",
+        "assistant": f'''SELECT r.name AS resource_name, r.role_rank, fc.capability_name
+FROM "{SCHEMA_NAME}"."ResourceCapability" rc
+JOIN "{SCHEMA_NAME}"."ConsolidatedResourceRoster" r ON r.resource_id = rc.resource_id
+JOIN "{SCHEMA_NAME}"."FirmCapabilities" fc ON fc.capability_id = rc.capability_id
+WHERE fc.capability_name ILIKE '%control tower%'
+LIMIT 100'''
+    },
+
+    # --- Engagements: simple join to client ---
     {
         "user": "Show project_name, status, and client_firm_name.",
         "assistant": f'''SELECT ce.project_name, ce.status, cl.client_firm_name
@@ -61,16 +82,8 @@ JOIN "{SCHEMA_NAME}"."ClientList" cl
   ON cl.client_id = ce.client_id
 LIMIT 100'''
     },
-    {
-        "user": "List project team members with their project_role for a sample of engagements.",
-        "assistant": f'''SELECT ce.project_name, ptr.name AS resource_name, pt.project_role
-FROM "{SCHEMA_NAME}"."ProjectTeam" pt
-JOIN "{SCHEMA_NAME}"."ClientEngagement" ce ON ce.engagement_id = pt.engagement_id
-JOIN "{SCHEMA_NAME}"."ConsolidatedResourceRoster" ptr ON ptr.resource_id = pt.resource_id
-LIMIT 100'''
-    },
 
-    # --- Training dataset ---
+    # --- Training: courses with tools/capabilities ---
     {
         "user": "List course_name and link_to_course.",
         "assistant": f'SELECT course_name, link_to_course FROM "{SCHEMA_NAME}"."TrainingLearning" LIMIT 100'

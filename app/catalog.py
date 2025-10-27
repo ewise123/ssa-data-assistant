@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
 
 from .db import run_select
-
 
 @dataclass
 class Column:
@@ -94,26 +95,53 @@ def load_catalog(schema: str) -> Catalog:
 
     return cat
 
-
 # --- Simple router: pick relevant tables/columns for a question ---
 
 DEFAULT_SYNONYMS: Dict[str, List[str]] = {
-    # business terms -> column/table hints (lowercase for matching)
+    # Leadership / Roles
     "managing director": ["title", "role_rank", "titlemaster", "consultantroster"],
     "managing directors": ["title", "role_rank", "titlemaster", "consultantroster"],
-    "mds": ["title", "titlemaster", "consultantroster"],
-    "powerbi": ["power", "bi", "capability", "capabilities", "firmcapabilities", "resourcecapability", "tool", "toolcapability", "firmtool"],
-    "power bi": ["power", "bi", "capability", "capabilities", "firmcapabilities", "resourcecapability", "tool", "toolcapability", "firmtool"],
+    "mds": ["title", "role_rank", "titlemaster", "consultantroster"],
+
+    # Contacts / Clients
     "contact": ["contact", "email", "clientcontact", "clientlist"],
     "contacts": ["contact", "email", "clientcontact", "clientlist"],
     "client": ["clientlist", "client", "client_firm_name"],
+
+    # Consultants / ICs
     "consultant": ["consultantroster", "name", "title_id", "phone_number"],
     "ic": ["icroster", "consultantic"],
+
+    # Engagements / Projects
     "engagement": ["clientengagement", "projectteam", "projectreviewform"],
+
+    # Capabilities
     "skill": ["capability", "capabilities", "resourcecapability", "firmcapabilities"],
     "skills": ["capability", "capabilities", "resourcecapability", "firmcapabilities"],
+    "capability": ["firmcapabilities", "resourcecapability"],
+    "capabilities": ["firmcapabilities", "resourcecapability"],
+
+    # Tools (mapped via ToolCapability → FirmTool → FirmCapabilities)
+    "powerbi": ["tool", "firmtool", "toolcapability"],
+    "power bi": ["tool", "firmtool", "toolcapability"],
+    "excel": ["tool", "firmtool", "toolcapability"],
+    "powerpoint": ["tool", "firmtool", "toolcapability"],
+    "disco": ["tool", "firmtool", "toolcapability"],
+
+    # Common capabilities by name
+    "edi expansion": ["capability", "firmcapabilities", "resourcecapability"],
+    "data analysis": ["capability", "firmcapabilities", "resourcecapability"],
+    "control tower": ["capability", "firmcapabilities", "resourcecapability"],
+    "footprint assessment": ["capability", "firmcapabilities", "resourcecapability"],
 }
 
+TOOL_KEYWORDS = {"powerbi", "power bi", "excel", "powerpoint", "disco"}
+
+def load_join_map(path: str | Path = "app/config/join_map.json") -> Dict[str, Any]:
+    p = Path(path)
+    if not p.exists():
+        return {"schema": None, "paths": []}
+    return json.loads(p.read_text(encoding="utf-8"))
 
 def suggest_schema_snippet(
     question: str,
@@ -136,12 +164,28 @@ def suggest_schema_snippet(
         if key in q:
             hint_terms.update(syns)
 
+    # --- NEW (A): detect tool queries and seed tool tables into the hint terms ---
+    is_tool_query = any(k in q for k in TOOL_KEYWORDS)
+    if is_tool_query:
+        # Ensure tool tables get considered even if keywords weren't in names
+        hint_terms.update({"firmtool", "toolcapability"})
+
+    # Score tables
     for table_name, table in catalog.tables.items():
         lower_name = table_name.lower()
+
         # table name match
         for term in hint_terms:
             if term in lower_name:
                 scores[table_name] += 4
+
+        # --- NEW (B): extra bias when it's a tool query ---
+        if is_tool_query:
+            if lower_name in {"firmtool", "toolcapability"}:
+                scores[table_name] += 8  # strong nudge toward tool path
+            elif lower_name == "firmcapabilities":
+                scores[table_name] += 1  # still useful in the tool path, but lower than FirmTool/ToolCapability
+
         # column name matches
         for column in table.columns:
             lower_column = column.name.lower()
@@ -149,37 +193,33 @@ def suggest_schema_snippet(
                 if term in lower_column:
                     scores[table_name] += 2
 
-    # Pick top 5 tables by score (non-zero), fallback to top by name if none scored
-    top = [
-        name for name, score in sorted(scores.items(), key=lambda item: item[1], reverse=True) if score > 0
-    ][:5]
+    # Pick top 5 tables by score (non-zero), fallback if none
+    top = [k for k, v in sorted(scores.items(), key=lambda kv: kv[1], reverse=True) if v > 0][:5]
     if not top:
         top = list(sorted(catalog.tables.keys()))[:5]
 
-    # Keep only columns that seem relevant (or first few cols if none match)
+    # Keep only relevant-looking columns (or first few if none match)
     lines: List[str] = ['Tables (schema-qualified):']
-    for table_name in top:
-        table = catalog.tables[table_name]
-        matched_cols = [
-            column.name for column in table.columns if any(term in column.name.lower() for term in hint_terms)
-        ]
+    for tname in top:
+        t = catalog.tables[tname]
+        matched_cols = [c.name for c in t.columns if any(term in c.name.lower() for term in hint_terms)]
         if not matched_cols:
-            matched_cols = [column.name for column in table.columns[:6]]
+            matched_cols = [c.name for c in t.columns[:6]]
         cols_str = ", ".join(matched_cols)
-        lines.append(f'  - "{catalog.schema}"."{table.name}"({cols_str})')
+        lines.append(f'  - "{catalog.schema}"."{t.name}"({cols_str})')
 
-    # Add join hints from FKs among the chosen tables
+    # Add join hints for FKs among chosen tables
     rel_lines: List[str] = []
     for fk in catalog.fks:
         if fk.src_table in top and fk.tgt_table in top:
             rel_lines.append(
-                f'  - "{catalog.schema}"."{fk.src_table}".{fk.src_column} -> '
+                f'  - "{catalog.schema}"."{fk.src_table}".{fk.src_column} → '
                 f'"{catalog.schema}"."{fk.tgt_table}".{fk.tgt_column}'
             )
     if rel_lines:
         lines.append("Relationships:")
         lines.extend(rel_lines)
 
-    # Small note to bias quoted usage
     lines.append('Note: Use double quotes and schema-qualified names exactly as listed above.')
     return "\n".join(lines)
+
