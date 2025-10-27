@@ -4,15 +4,76 @@ import socket
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
-# --- Load .env from the project root (folder that contains .env) ---
 ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / ".env")
+
+
+def _load_from_key_vault() -> Dict[str, str]:
+    """
+    Optionally pull secrets from Azure Key Vault.
+    Enabled when AZURE_KEY_VAULT_URL is set. The comma-separated list of secret names is read from
+    SSA_KEY_VAULT_SECRETS (defaults to OpenAI + Postgres entries).
+    """
+    vault_url = os.getenv("AZURE_KEY_VAULT_URL")
+    if not vault_url:
+        return {}
+
+    try:
+        from azure.identity import DefaultAzureCredential  # type: ignore
+        from azure.keyvault.secrets import SecretClient  # type: ignore
+    except ImportError:
+        print("[secrets] azure-identity / keyvault packages missing; skipping Key Vault load")
+        return {}
+
+    secret_names = os.getenv(
+        "SSA_KEY_VAULT_SECRETS",
+        "OPENAI_API_KEY,PG_DSN_READONLY,PG_SEARCH_PATH",
+    )
+    credential = DefaultAzureCredential(exclude_visual_studio_code_credential=True)
+    client = SecretClient(vault_url=vault_url, credential=credential)
+
+    secrets: Dict[str, str] = {}
+    for raw_name in secret_names.split(","):
+        name = raw_name.strip()
+        if not name:
+            continue
+        try:
+            secrets[name] = client.get_secret(name).value
+        except Exception as exc:  # pragma: no cover - network dependency
+            print(f"[secrets] Failed to pull '{name}' from Key Vault: {exc}")
+    return secrets
+
+
+def load_environment() -> None:
+    """
+    Ensures all required secrets are available from environment variables.
+    Preference order:
+      1. Already-set environment variables (injected by platform).
+      2. Azure Key Vault (optional).
+      3. Local .env file (developer convenience only).
+    """
+    # Apply Key Vault secrets without overriding explicitly-set env values.
+    for key, value in _load_from_key_vault().items():
+        os.environ.setdefault(key, value)
+
+    required = ("OPENAI_API_KEY", "PG_DSN_READONLY", "PG_SEARCH_PATH")
+    missing = [key for key in required if not os.getenv(key)]
+    env_path = ROOT / ".env"
+    if missing and env_path.exists():
+        load_dotenv(env_path)
+        missing = [key for key in required if not os.getenv(key)]
+
+    if missing:
+        missing_list = ", ".join(missing)
+        print(f"[secrets] Warning: missing expected environment variables: {missing_list}")
+
+
+load_environment()
 
 # --- Local imports AFTER env vars are loaded ---
 from .ai_sql import propose_sql, propose_sql_repair
