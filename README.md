@@ -1,6 +1,6 @@
 # SSA Data Assistant
 
-FastAPI-powered, AI-assisted SQL exploration for the **Project_Master_Database** schema. The SSA Data Assistant lets business and analytics users ask natural-language questions that are translated into safe, read-only SQL and executed against a PostgreSQL instance.
+FastAPI-powered, AI-assisted SQL exploration for the **Project_Master_Database** schema. The SSA Data Assistant lets SSA Consultants ask natural-language questions that are translated into safe, read-only SQL and executed against a PostgreSQL instance.
 
 ## Table of Contents
 - [Architecture](#architecture)
@@ -148,4 +148,4 @@ See **[docs/ADD_NEW_DATA_WORKFLOW.md](docs/ADD_NEW_DATA_WORKFLOW.md)** for step-
 3. Update config docs if schema/config files change.
 4. Submit PR with summary + screenshots/logs if relevant.
 
-For questions, reach out to the Analytics Engineering team or open an internal ticket.
+For questions, reach out to the Solutions CoE
