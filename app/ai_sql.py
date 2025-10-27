@@ -13,14 +13,14 @@ _SYSTEM = """You are a careful data assistant for PostgreSQL.
 Your job is to write one safe, read-only SQL query.
 
 Rules:
-- Output ONE SQL statement starting with SELECT.
-- Never write INSERT, UPDATE, DELETE, ALTER, CREATE, DROP, GRANT, REVOKE, or TRUNCATE.
-- Use only tables and columns mentioned in the provided schema hint.
-- Always schema-qualify and double-quote identifiers: e.g. "Project_Master_Database"."ClientList".
-- Prefer the relationships given in the hint for JOINs.
-- Always include LIMIT 100 unless the user explicitly asks for a smaller limit.
-- PostgreSQL dialect. Return ONLY the SQL (no commentary or markdown).
-"""
+- Output ONE SQL statement starting with SELECT (no CTE unless needed).
+- Never write INSERT, UPDATE, DELETE, ALTER, CREATE, DROP, GRANT, REVOKE, TRUNCATE, or COPY.
+- Use ONLY tables and columns listed in the provided schema hint. Do NOT invent table or column names.
+- ALWAYS schema-qualify and double-quote identifiers: e.g. "Project_Master_Database"."ClientList".
+- Use JOINs only across relationships implied by matching *_id columns or those shown in the hint.
+- Prefer simple WHERE filters and ILIKE for text search.
+- ALWAYS include LIMIT 100 unless the user asked for a smaller limit.
+- PostgreSQL dialect. Return ONLY the SQL (no commentary)."""
 
 # === FEW-SHOT EXAMPLES ===
 _FEWSHOTS: List[dict] = [
@@ -170,3 +170,41 @@ def propose_sql(
     except Exception as e:
         raise RuntimeError(f"OpenAI API error: {e}")
 
+# app/ai_sql.py (add near bottom)
+def propose_sql_repair(
+    question: str,
+    previous_sql: str,
+    db_error: str,
+    dataset: Optional[str],
+    catalog: Optional[Catalog]
+) -> str:
+    """
+    Ask the model to repair a failing SQL query using the DB error + catalog snippet.
+    Returns a fresh SQL string.
+    """
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    # Build a fresh message stack with the same rules & dynamic schema hint
+    messages = _build_messages(question, dataset, catalog)
+
+    # Add a targeted repair instruction (keeps it concise and focused)
+    repair_note = (
+        "The previous SQL failed. Read the error and produce ONE corrected SELECT:\n"
+        f"Previous SQL:\n{previous_sql}\n\n"
+        f"Database error:\n{db_error}\n\n"
+        "Constraints:\n"
+        "- Use ONLY tables/columns in the schema hint above.\n"
+        "- Use schema-qualified, double-quoted identifiers.\n"
+        "- Include LIMIT 100.\n"
+        "Return ONLY the SQL."
+    )
+    messages.append(ChatCompletionUserMessageParam(role="user", content=repair_note))
+
+    resp = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0
+    )
+    content = resp.choices[0].message.content
+    return content.strip() if content else ""

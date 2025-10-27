@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 
 # --- Local imports AFTER env vars are loaded ---
-from .ai_sql import propose_sql
+from .ai_sql import propose_sql, propose_sql_repair
 from .catalog import Catalog, CatalogLoadError, load_catalog, suggest_schema_snippet
 from .db import describe_dsn, run_select
 from .sql_validator import validate_sql
@@ -143,20 +143,61 @@ class AskResponse(BaseModel):
 def ask(req: AskRequest):
     active_catalog = CATALOG
 
-    # 1) Generate SQL with catalog-aware hinting (or fallback hints if catalog missing)
+    # --- First attempt ---
     try:
         raw_sql = propose_sql(req.question, req.dataset, active_catalog)
         safe_sql = validate_sql(raw_sql)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {exc}")
+        # Try a repair if validator fails
+        try:
+            repaired = propose_sql_repair(
+                req.question,
+                raw_sql if 'raw_sql' in locals() else '',
+                f"Validator error: {exc}",
+                req.dataset,
+                active_catalog
+            )
+            safe_sql = validate_sql(repaired)
+        except Exception as e2:
+            raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {e2}")
 
-    # 2) Execute against Postgres (read-only)
+    # --- Execute first attempt ---
     try:
         columns, rows = run_select(safe_sql)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Database error: {exc}")
+        return AskResponse(sql=safe_sql, columns=columns, rows=rows)
+    except Exception as e:
+        msg = str(e)
+        retriable = any(
+            s in msg.lower()
+            for s in [
+                "relation", "does not exist", "column",
+                "type", "operator does not exist", "function", "syntax error"
+            ]
+        )
+        if not retriable:
+            raise HTTPException(status_code=400, detail=f"Database error: {e}")
 
-    return AskResponse(sql=safe_sql, columns=columns, rows=rows)
+        # --- First repair attempt ---
+        try:
+            repaired = propose_sql_repair(req.question, safe_sql, msg, req.dataset, active_catalog)
+            safe_sql_2 = validate_sql(repaired)
+            cols2, rows2 = run_select(safe_sql_2)
+            return AskResponse(sql=safe_sql_2, columns=cols2, rows=rows2)
+        except Exception as e2:
+            # --- Second (final) repair attempt ---
+            try:
+                repaired2 = propose_sql_repair(
+                    req.question,
+                    repaired if 'repaired' in locals() else safe_sql,
+                    str(e2),
+                    req.dataset,
+                    active_catalog
+                )
+                safe_sql_3 = validate_sql(repaired2)
+                cols3, rows3 = run_select(safe_sql_3)
+                return AskResponse(sql=safe_sql_3, columns=cols3, rows=rows3)
+            except Exception as e3:
+                raise HTTPException(status_code=400, detail=f"Database error after retries: {e3}")
 
 
 @app.get("/debug/db", include_in_schema=False)
