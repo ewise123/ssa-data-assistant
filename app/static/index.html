@@ -6,6 +6,25 @@
   <title>SSA Project Data Assistant</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script>
+    (function () {
+      const storageKey = "ssa-theme";
+      const root = document.documentElement;
+      let theme = "light";
+
+      try {
+        const storedTheme = localStorage.getItem(storageKey);
+        if (storedTheme === "dark" || storedTheme === "light") {
+          theme = storedTheme;
+        }
+      } catch (err) {
+      }
+
+      root.dataset.theme = theme;
+      root.classList.remove("light", "dark");
+      root.classList.add(theme);
+    })();
+  </script>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <script>
     tailwind.config = {
@@ -57,8 +76,8 @@
             <span class="material-symbols-outlined text-3xl">dataset</span>
             <h1 class="text-xl font-bold">SSA Data Assistant</h1>
           </div>
-          <button class="flex items-center justify-center rounded-full h-10 w-10 bg-white/20 hover:bg-white/30 transition-colors">
-            <span class="material-symbols-outlined text-white">dark_mode</span>
+          <button aria-label="Toggle dark mode" aria-pressed="false" class="flex items-center justify-center rounded-full h-10 w-10 bg-white/20 hover:bg-white/30 transition-colors" id="theme-toggle" type="button">
+            <span class="material-symbols-outlined text-white" id="theme-toggle-icon">dark_mode</span>
           </button>
         </div>
       </div>
@@ -172,20 +191,86 @@
     const populatedState = document.getElementById("populated-state");
     const sqlOutput = document.getElementById("sql-output");
     const resultsHead = document.getElementById("results-head");
-    const resultsBody = document.getElementById("results-body");
-    const rowCount = document.getElementById("row-count");
-    const copySqlButton = document.getElementById("copy-sql-button");
-    const toast = document.getElementById("toast");
-    const progressBar = document.getElementById("progress-bar");
+      const resultsBody = document.getElementById("results-body");
+      const rowCount = document.getElementById("row-count");
+      const copySqlButton = document.getElementById("copy-sql-button");
+      const toast = document.getElementById("toast");
+      const progressBar = document.getElementById("progress-bar");
+      const themeToggleButton = document.getElementById("theme-toggle");
+      const themeToggleIcon = document.getElementById("theme-toggle-icon");
+      const rootElement = document.documentElement;
+      const bodyElement = document.body;
+      const THEME_STORAGE_KEY = "ssa-theme";
+      const systemPrefersDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
-    // --- Anime helpers ---
-    const PREFERS_REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const A = (opts) => { if (!PREFERS_REDUCED && window.anime) window.anime(opts); };
+      // --- Anime helpers ---
+      const PREFERS_REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const A = (opts) => { if (!PREFERS_REDUCED && window.anime) window.anime(opts); };
 
-    // Button micro-bounce
-    submitButton.addEventListener('mousedown', () => {
-      A({ targets: '#submit-button', scale: [1, 0.98, 1], duration: 160, easing: 'easeOutQuad' });
-    });
+      // Theme toggling
+      function getCurrentTheme() {
+        if (rootElement.dataset.theme === "dark") return "dark";
+        if (rootElement.dataset.theme === "light") return "light";
+        return rootElement.classList.contains("dark") ? "dark" : "light";
+      }
+
+      function applyTheme(theme) {
+        const normalizedTheme = theme === "dark" ? "dark" : "light";
+        const isDark = normalizedTheme === "dark";
+
+        rootElement.dataset.theme = normalizedTheme;
+        rootElement.classList.remove("light", "dark");
+        rootElement.classList.add(normalizedTheme);
+
+        if (bodyElement) {
+          bodyElement.dataset.theme = normalizedTheme;
+          bodyElement.classList.remove("light", "dark");
+          bodyElement.classList.add(normalizedTheme);
+        }
+
+        if (themeToggleButton) {
+          themeToggleButton.setAttribute("aria-pressed", isDark ? "true" : "false");
+          themeToggleButton.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+        }
+        if (themeToggleIcon) {
+          themeToggleIcon.textContent = isDark ? "light_mode" : "dark_mode";
+        }
+      }
+
+      function persistTheme(theme) {
+        try {
+          localStorage.setItem(THEME_STORAGE_KEY, theme);
+        } catch (err) {
+          // Swallow storage errors (e.g. private mode)
+        }
+      }
+
+      if (themeToggleButton) {
+        applyTheme(getCurrentTheme());
+        themeToggleButton.addEventListener("click", () => {
+          const nextTheme = getCurrentTheme() === "dark" ? "light" : "dark";
+          applyTheme(nextTheme);
+          persistTheme(nextTheme);
+        });
+      }
+
+      if (systemPrefersDark) {
+        systemPrefersDark.addEventListener("change", (event) => {
+          let storedTheme;
+          try {
+            storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+          } catch (err) {
+            storedTheme = null;
+          }
+          if (storedTheme === "dark" || storedTheme === "light") return;
+          applyTheme(event.matches ? "dark" : "light");
+        });
+      }
+
+      // Button micro-bounce
+      submitButton.addEventListener('mousedown', () => {
+        A({ targets: '#submit-button', scale: [1, 0.98, 1], duration: 160, easing: 'easeOutQuad' });
+      });
 
     // Error banner (shake)
     function setError(message) {
