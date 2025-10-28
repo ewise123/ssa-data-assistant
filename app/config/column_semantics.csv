@@ -14,6 +14,10 @@ ClientContact,email,email,=,,exact match or domain filter
 ClientContact,role_to_ssa,text,ilike,%{term}%,
 ClientContact,organization,text,ilike,%{term}%,
 ClientContact,internal_role,text,ilike,%{term}%,
+ClientContactResource,contact_id,id,=,,FK → ClientContact.contact_id
+ClientContactResource,resource_id,id,=,,FK → ConsolidatedResourceRoster.resource_id
+ClientContactResource,relationship_type,text,ilike,%{term}%,
+ClientContactResource,notes,text,ilike,%{term}%,
 
 ClientEngagement,engagement_id,id,=,,primary key
 ClientEngagement,client_id,id,=,,FK → ClientList.client_id

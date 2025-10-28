@@ -52,6 +52,26 @@
       "result_defaults": ["ClientList.client_firm_name", "ClientContact.contact_name", "ClientContact.email"]
     },
     {
+      "intent": "resources_with_client_contacts",
+      "description": "Resources tied to client contacts via the ClientContactResource mapping table.",
+      "tables": ["ClientList", "ClientContact", "ClientContactResource", "ConsolidatedResourceRoster"],
+      "joins": [
+        ["ClientContact.client_id", "ClientList.client_id"],
+        ["ClientContactResource.contact_id", "ClientContact.contact_id"],
+        ["ClientContactResource.resource_id", "ConsolidatedResourceRoster.resource_id"]
+      ],
+      "canonical_filters": [
+        {"table": "ClientList", "column": "client_firm_name", "preferred_filter": "ilike", "pattern": "%{term}%"}
+      ],
+      "result_defaults": [
+        "ClientList.client_firm_name",
+        "ClientContact.contact_name",
+        "ClientContact.email",
+        "ConsolidatedResourceRoster.name AS resource_name",
+        "ConsolidatedResourceRoster.role_rank"
+      ]
+    },
+    {
       "intent": "engagements_with_client",
       "description": "Engagements with client firm name.",
       "tables": ["ClientEngagement", "ClientList"],
