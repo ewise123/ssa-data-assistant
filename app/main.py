@@ -87,6 +87,7 @@ from .config_loader import (
 )
 from .db import describe_dsn, run_select
 from .sql_validator import validate_sql
+from .query_metrics import record_query
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -272,6 +273,12 @@ def ask(req: AskRequest):
     active_catalog = CATALOG
     disambiguation = CONFIG.get("disambiguation")
     schema_hint: Optional[SchemaHint] = None
+    status: str = "ok"
+    row_count: Optional[int] = None
+    error_message: Optional[str] = None
+    safe_sql: Optional[str] = None
+    columns: List[str] = []
+    rows: List[Dict[str, Any]] = []
 
     if active_catalog:
         schema_hint = suggest_schema_snippet(
@@ -299,48 +306,78 @@ def ask(req: AskRequest):
         cols, rows = run_select(validated_sql)
         return validated_sql, cols, rows
 
-    # 1. Generate SQL
     try:
-        raw_sql, schema_hint = propose_sql(
-            req.question,
-            dataset=req.dataset,
-            catalog=active_catalog,
-            config=CONFIG,
-            schema_hint=schema_hint,
-            disambiguation=disambiguation,
-        )
-        safe_sql = validate_sql(raw_sql)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {exc}")
-
-    # 2. Execute first attempt
-    try:
-        columns, rows = run_select(safe_sql)
-    except Exception as exc:
-        err_text = str(exc)
-        print(f"[ask] execution error -> attempting repair ({err_text})")
         try:
-            safe_sql, columns, rows = _repair(err_text, safe_sql)
-            print("[ask] repair succeeded after execution error")
-        except Exception as repair_exc:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Database error: {err_text}; repair failed: {repair_exc}",
+            # 1. Generate SQL
+            raw_sql, schema_hint = propose_sql(
+                req.question,
+                dataset=req.dataset,
+                catalog=active_catalog,
+                config=CONFIG,
+                schema_hint=schema_hint,
+                disambiguation=disambiguation,
             )
+            safe_sql = validate_sql(raw_sql)
+        except Exception as exc:
+            status = "error"
+            error_message = str(exc)
+            raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {exc}") from exc
 
-    # 3. If the query ran but returned no rows, try one guided repair
-    if active_catalog and schema_hint and len(rows) == 0:
-        print(f"[ask] no rows returned; attempting repair via intent '{schema_hint.primary_intent}'")
         try:
-            safe_sql, new_cols, new_rows = _repair("no rows returned", safe_sql)
-            if new_rows:
-                print("[ask] repair produced rows; returning repaired result")
-                return AskResponse(sql=safe_sql, columns=new_cols, rows=new_rows)
-            print("[ask] repair still returned zero rows; returning original result")
-        except Exception as repair_exc:
-            print(f"[ask] repair attempt failed: {repair_exc}")
+            # 2. Execute first attempt
+            columns, rows = run_select(safe_sql)
+        except Exception as exc:
+            err_text = str(exc)
+            print(f"[ask] execution error -> attempting repair ({err_text})")
+            try:
+                safe_sql, columns, rows = _repair(err_text, safe_sql)
+                print("[ask] repair succeeded after execution error")
+            except Exception as repair_exc:
+                status = "error"
+                error_message = f"{err_text}; repair failed: {repair_exc}"
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Database error: {err_text}; repair failed: {repair_exc}",
+                ) from repair_exc
 
-    return AskResponse(sql=safe_sql, columns=columns, rows=rows)
+        # 3. If the query ran but returned no rows, try one guided repair
+        if active_catalog and schema_hint and len(rows) == 0:
+            print(f"[ask] no rows returned; attempting repair via intent '{schema_hint.primary_intent}'")
+            try:
+                candidate_sql, new_cols, new_rows = _repair("no rows returned", safe_sql)
+                if new_rows:
+                    print("[ask] repair produced rows; returning repaired result")
+                    safe_sql = candidate_sql
+                    columns = new_cols
+                    rows = new_rows
+                else:
+                    print("[ask] repair still returned zero rows; returning original result")
+                    status = "empty"
+            except Exception as repair_exc:
+                print(f"[ask] repair attempt failed: {repair_exc}")
+                status = "empty"
+
+        row_count = len(rows)
+        return AskResponse(sql=safe_sql, columns=columns, rows=rows)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        status = "error"
+        if error_message is None:
+            error_message = str(exc)
+        raise
+    finally:
+        effective_row_count = row_count if row_count is not None else len(rows)
+        final_status = status
+        if final_status == "ok" and effective_row_count == 0:
+            final_status = "empty"
+        record_query(
+            question=req.question,
+            dataset=req.dataset,
+            status=final_status,
+            row_count=effective_row_count,
+            error_message=error_message,
+        )
 
 
 @app.get("/debug/db", include_in_schema=False)
