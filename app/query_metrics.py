@@ -33,6 +33,20 @@ def _ensure_database() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.executescript(INITIAL_SCHEMA)
+        conn.row_factory = sqlite3.Row
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(query_log)")}
+        if "canonical_question" not in columns:
+            conn.execute("ALTER TABLE query_log ADD COLUMN canonical_question TEXT")
+        pending = conn.execute(
+            "SELECT id, question FROM query_log WHERE canonical_question IS NULL OR canonical_question = ''"
+        ).fetchall()
+        for row in pending:
+            conn.execute(
+                "UPDATE query_log SET canonical_question = ? WHERE id = ?",
+                (_normalize_question(row["question"]), row["id"]),
+            )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_query_log_canonical ON query_log (canonical_question)")
+        conn.commit()
 
 
 @contextmanager
@@ -44,6 +58,10 @@ def _conn() -> Generator[sqlite3.Connection, None, None]:
         yield conn
     finally:
         conn.close()
+
+
+def _normalize_question(question: str) -> str:
+    return "".join(ch for ch in question.lower().strip() if ch.isalnum() or ch.isspace())
 
 
 def record_query(
@@ -60,12 +78,13 @@ def record_query(
     - "error": execution or generation error
     """
     with _conn() as conn:
+        canonical = _normalize_question(question)
         conn.execute(
             """
-            INSERT INTO query_log (question, dataset, status, row_count, error_message)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO query_log (question, canonical_question, dataset, status, row_count, error_message)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (question, dataset, status, row_count, error_message),
+            (question, canonical, dataset, status, row_count, error_message),
         )
         conn.commit()
 
@@ -78,11 +97,12 @@ def fetch_top_queries(limit: int = 10) -> List[TopQueryRow]:
         cur = conn.execute(
             """
             SELECT
-                question,
+                canonical_question AS canonical,
+                MIN(question) AS question,
                 COUNT(*) AS count,
                 MAX(created_at) AS last_asked
             FROM query_log
-            GROUP BY question
+            GROUP BY canonical_question
             ORDER BY count DESC, last_asked DESC
             LIMIT ?
             """,
@@ -97,4 +117,3 @@ def fetch_top_queries(limit: int = 10) -> List[TopQueryRow]:
             )
             for row in rows
         ]
-
