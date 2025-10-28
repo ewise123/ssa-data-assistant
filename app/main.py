@@ -3,9 +3,11 @@ import os
 import socket
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from html import escape
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -261,10 +263,20 @@ class AskRequest(BaseModel):
     dataset: Optional[str] = None
 
 
+class AskMetadata(BaseModel):
+    question: str
+    dataset: Optional[str]
+    status: str
+    row_count: int
+    error: Optional[str] = None
+    timestamp: datetime
+
+
 class AskResponse(BaseModel):
     sql: str
     columns: List[str]
     rows: List[Dict[str, Any]]
+    metadata: AskMetadata
 
 
 # --- Main endpoint ---
@@ -279,6 +291,7 @@ def ask(req: AskRequest):
     safe_sql: Optional[str] = None
     columns: List[str] = []
     rows: List[Dict[str, Any]] = []
+    final_status_for_log: Optional[str] = None
 
     if active_catalog:
         schema_hint = suggest_schema_snippet(
@@ -358,7 +371,19 @@ def ask(req: AskRequest):
                 status = "empty"
 
         row_count = len(rows)
-        return AskResponse(sql=safe_sql, columns=columns, rows=rows)
+        response_status = status
+        if response_status == "ok" and row_count == 0:
+            response_status = "empty"
+        final_status_for_log = response_status
+        metadata = AskMetadata(
+            question=req.question,
+            dataset=req.dataset,
+            status=response_status,
+            row_count=row_count,
+            error=error_message if response_status == "error" else None,
+            timestamp=datetime.now(timezone.utc),
+        )
+        return AskResponse(sql=safe_sql, columns=columns, rows=rows, metadata=metadata)
     except HTTPException:
         raise
     except Exception as exc:
@@ -368,7 +393,7 @@ def ask(req: AskRequest):
         raise
     finally:
         effective_row_count = row_count if row_count is not None else len(rows)
-        final_status = status
+        final_status = final_status_for_log or status
         if final_status == "ok" and effective_row_count == 0:
             final_status = "empty"
         record_query(
@@ -405,3 +430,94 @@ def analytics_problem_queries(limit: int = 20):
     limit = max(1, min(limit, 50))
     rows = fetch_problem_queries(limit=limit)
     return {"items": rows}
+
+
+@app.get("/admin/problem-queries", include_in_schema=False)
+def admin_problem_queries(limit: int = 50):
+    limit = max(1, min(limit, 200))
+    rows = fetch_problem_queries(limit=limit)
+    table_rows = "\n".join(
+        f"<tr>"
+        f"<td>{escape(row['question'])}</td>"
+        f"<td>{escape(row['status'])}</td>"
+        f"<td class='numeric'>{row['count']}</td>"
+        f"<td>{escape(row['last_asked'])}</td>"
+        f"<td>{escape(row['last_error'] or '')}</td>"
+        f"</tr>"
+        for row in rows
+    ) or "<tr><td colspan='5'>No problematic queries logged yet.</td></tr>"
+
+    html_doc = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8"/>
+      <title>Problem Queries · SSA Data Assistant</title>
+      <style>
+        :root {{
+          font-family: Arial, sans-serif;
+          background: #f5f7fb;
+          color: #1f2937;
+        }}
+        body {{
+          margin: 0;
+          padding: 2rem;
+        }}
+        h1 {{
+          margin-bottom: 1rem;
+        }}
+        table {{
+          width: 100%;
+          border-collapse: collapse;
+          box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+        }}
+        th, td {{
+          padding: 0.75rem 1rem;
+          border-bottom: 1px solid #d1d5db;
+          vertical-align: top;
+        }}
+        th {{
+          text-align: left;
+          background: #111827;
+          color: #f9fafb;
+        }}
+        tr:nth-child(even) td {{
+          background: #f9fafb;
+        }}
+        td.numeric {{
+          text-align: right;
+          font-variant-numeric: tabular-nums;
+        }}
+        .meta {{
+          margin-bottom: 1rem;
+          color: #4b5563;
+        }}
+        code {{
+          background: rgba(55, 65, 81, 0.12);
+          padding: 0.1rem 0.35rem;
+          border-radius: 0.35rem;
+          font-size: 0.9rem;
+        }}
+      </style>
+    </head>
+    <body>
+      <h1>Problem Queries</h1>
+      <p class="meta">Showing up to <code>{limit}</code> queries with status <code>empty</code> or <code>error</code>.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Status</th>
+            <th>Count</th>
+            <th>Last Asked</th>
+            <th>Last Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {table_rows}
+        </tbody>
+      </table>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_doc)
