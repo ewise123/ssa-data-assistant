@@ -87,7 +87,7 @@ from .config_loader import (
 )
 from .db import describe_dsn, run_select
 from .sql_validator import validate_sql
-from .query_metrics import record_query, fetch_top_queries
+from .query_metrics import record_query, fetch_top_queries, fetch_problem_queries
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -397,4 +397,11 @@ def debug_db():
 def analytics_common_queries(limit: int = 10):
     limit = max(1, min(limit, 50))
     rows = fetch_top_queries(limit=limit)
+    return {"items": rows}
+
+
+@app.get("/analytics/problem-queries")
+def analytics_problem_queries(limit: int = 20):
+    limit = max(1, min(limit, 50))
+    rows = fetch_problem_queries(limit=limit)
     return {"items": rows}

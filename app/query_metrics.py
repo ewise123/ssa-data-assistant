@@ -29,6 +29,14 @@ class TopQueryRow(TypedDict):
     last_asked: str
 
 
+class ProblemQueryRow(TypedDict):
+    question: str
+    status: str
+    count: int
+    last_asked: str
+    last_error: Optional[str]
+
+
 def _ensure_database() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
@@ -61,7 +69,8 @@ def _conn() -> Generator[sqlite3.Connection, None, None]:
 
 
 def _normalize_question(question: str) -> str:
-    return "".join(ch for ch in question.lower().strip() if ch.isalnum() or ch.isspace())
+    normalized = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in question.lower())
+    return " ".join(normalized.split())
 
 
 def record_query(
@@ -114,6 +123,44 @@ def fetch_top_queries(limit: int = 10) -> List[TopQueryRow]:
                 question=row["question"],
                 count=row["count"],
                 last_asked=row["last_asked"],
+            )
+            for row in rows
+        ]
+
+
+def fetch_problem_queries(limit: int = 50) -> List[ProblemQueryRow]:
+    with _conn() as conn:
+        cur = conn.execute(
+            """
+            SELECT
+                canonical_question AS canonical,
+                MIN(question) AS question,
+                status,
+                COUNT(*) AS count,
+                MAX(created_at) AS last_asked,
+                MAX(
+                    CASE
+                        WHEN error_message IS NOT NULL AND TRIM(error_message) <> ''
+                        THEN error_message
+                        ELSE NULL
+                    END
+                ) AS last_error
+            FROM query_log
+            WHERE status IN ('empty', 'error')
+            GROUP BY canonical_question, status
+            ORDER BY count DESC, last_asked DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+        return [
+            ProblemQueryRow(
+                question=row["question"],
+                status=row["status"],
+                count=row["count"],
+                last_asked=row["last_asked"],
+                last_error=row["last_error"],
             )
             for row in rows
         ]
