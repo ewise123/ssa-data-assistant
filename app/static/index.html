@@ -109,6 +109,13 @@
             </div>
           </div>
 
+          <div class="mt-4" id="common-queries-wrapper">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" for="common-queries">Common Queries</label>
+            <select class="form-select w-full h-12 px-4 rounded-lg border-cool-gray/50 focus:ring-sky-blue focus:border-sky-blue bg-white dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" id="common-queries">
+              <option value="">Loading common queries…</option>
+            </select>
+          </div>
+
           <div class="mt-6">
             <div class="h-1 rounded-full bg-cool-gray/20 dark:bg-gray-700 overflow-hidden">
               <div class="h-full bg-sky-blue transition-all duration-300" id="progress-bar" style="width: 0%;"></div>
@@ -190,7 +197,7 @@
     const emptyState = document.getElementById("empty-state");
     const populatedState = document.getElementById("populated-state");
     const sqlOutput = document.getElementById("sql-output");
-    const resultsHead = document.getElementById("results-head");
+      const resultsHead = document.getElementById("results-head");
       const resultsBody = document.getElementById("results-body");
       const rowCount = document.getElementById("row-count");
       const copySqlButton = document.getElementById("copy-sql-button");
@@ -200,6 +207,7 @@
       const themeToggleIcon = document.getElementById("theme-toggle-icon");
       const rootElement = document.documentElement;
       const bodyElement = document.body;
+      const commonQueriesSelect = document.getElementById("common-queries");
       const THEME_STORAGE_KEY = "ssa-theme";
       const systemPrefersDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
@@ -271,6 +279,48 @@
       submitButton.addEventListener('mousedown', () => {
         A({ targets: '#submit-button', scale: [1, 0.98, 1], duration: 160, easing: 'easeOutQuad' });
       });
+
+      async function loadCommonQueries() {
+        if (!commonQueriesSelect) return;
+        try {
+          const response = await fetch("/analytics/common-queries");
+          if (!response.ok) throw new Error(`Failed to load common queries (${response.status})`);
+          const payload = await response.json();
+          const items = Array.isArray(payload?.items) ? payload.items : [];
+          const selectedValue = commonQueriesSelect.value;
+
+          const placeholder = items.length ? "Select a common question..." : "No common queries logged yet";
+          commonQueriesSelect.innerHTML = `<option value="">${placeholder}</option>`;
+          items.forEach((item) => {
+            if (!item || typeof item.question !== "string" || !item.question.trim()) return;
+            const option = document.createElement("option");
+            option.value = item.question;
+            option.textContent = `${item.question}`;
+            commonQueriesSelect.appendChild(option);
+          });
+
+          if (selectedValue && Array.from(commonQueriesSelect.options).some((opt) => opt.value === selectedValue)) {
+            commonQueriesSelect.value = selectedValue;
+          }
+          commonQueriesSelect.disabled = items.length === 0;
+        } catch (err) {
+          console.error("Failed to load common queries", err);
+          if (commonQueriesSelect) {
+            commonQueriesSelect.innerHTML = '<option value="">Unable to load common queries</option>';
+            commonQueriesSelect.disabled = true;
+          }
+        }
+      }
+
+      if (commonQueriesSelect) {
+        commonQueriesSelect.addEventListener("change", (event) => {
+          const value = event.target.value;
+          if (value) {
+            questionInput.value = value;
+            questionInput.focus();
+          }
+        });
+      }
 
     // Error banner (shake)
     function setError(message) {
@@ -422,6 +472,7 @@
         setTimeout(() => {
           A({ targets: '#progress-bar', width: '0%', duration: 350, easing: 'easeInCubic' });
         }, 400);
+        loadCommonQueries();
       }
     }
 
@@ -433,6 +484,7 @@
       }
     });
     copySqlButton.addEventListener("click", copySqlToClipboard);
+    loadCommonQueries();
   </script>
 </body>
 </html>
