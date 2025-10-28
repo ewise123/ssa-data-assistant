@@ -65,11 +65,32 @@
       'GRAD' 0,
       'opsz' 24
     }
+    #app-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+    }
+    #app-header::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 51, 153, 0.95);
+      backdrop-filter: blur(10px);
+      transition: background-color 0.2s ease;
+      z-index: -1;
+    }
+    @supports (backdrop-filter: blur(10px)) {
+      #app-header::before {
+        background-color: rgba(0, 51, 153, 0.85);
+      }
+    }
   </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark font-display text-black dark:text-white transition-colors duration-300">
   <div class="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
-    <header class="bg-header-bg text-white shadow-md">
+    <header id="app-header" class="bg-header-bg text-white shadow-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
           <div class="flex items-center gap-4">
@@ -83,7 +104,7 @@
       </div>
     </header>
 
-    <main class="flex-grow">
+    <main class="flex-grow pt-20 md:pt-24">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="bg-background-light dark:bg-gray-800 p-6 rounded-lg shadow-lg">
           <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
@@ -112,7 +133,7 @@
           <div class="mt-4" id="common-queries-wrapper">
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2" for="common-queries">Common Queries</label>
             <select class="form-select w-full h-12 px-4 rounded-lg border-cool-gray/50 focus:ring-sky-blue focus:border-sky-blue bg-white dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" id="common-queries">
-              <option value="">Loading common queries…</option>
+              <option value="">Loading common queries...</option>
             </select>
           </div>
 
