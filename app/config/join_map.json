@@ -3,18 +3,26 @@
   "paths": [
     {
       "intent": "resources_by_tool",
-      "description": "Resources who use a given tool (e.g., Power BI, Excel, PowerPoint, Disco).",
-      "tables": ["FirmTool", "ToolCapability", "FirmCapabilities", "ResourceCapability", "ConsolidatedResourceRoster"],
+      "description": "Resources who use a given tool, including proficiency and last validation.",
+      "tables": ["FirmTool", "ResourceTool", "ConsolidatedResourceRoster", "ResourceCapability", "FirmCapabilities"],
       "joins": [
-        ["FirmTool.tool_id", "ToolCapability.tool_id"],
-        ["ToolCapability.capability_id", "FirmCapabilities.capability_id"],
-        ["FirmCapabilities.capability_id", "ResourceCapability.capability_id"],
-        ["ResourceCapability.resource_id", "ConsolidatedResourceRoster.resource_id"]
+        ["ResourceTool.tool_id", "FirmTool.tool_id"],
+        ["ResourceTool.resource_id", "ConsolidatedResourceRoster.resource_id"],
+        ["ResourceCapability.resource_id", "ConsolidatedResourceRoster.resource_id"],
+        ["ResourceCapability.capability_id", "FirmCapabilities.capability_id"]
       ],
       "canonical_filters": [
-        {"table": "FirmTool", "column": "tool_name", "preferred_filter": "ilike", "pattern": "%{term}%"}
+        {"table": "FirmTool", "column": "tool_name", "preferred_filter": "ilike", "pattern": "%{term}%"},
+        {"table": "FirmCapabilities", "column": "capability_name", "preferred_filter": "ilike", "pattern": "%{term}%"}
       ],
-      "result_defaults": ["ConsolidatedResourceRoster.name AS resource_name", "ConsolidatedResourceRoster.role_rank", "FirmTool.tool_name"]
+      "result_defaults": [
+        "ConsolidatedResourceRoster.name AS resource_name",
+        "ConsolidatedResourceRoster.role_rank",
+        "FirmTool.tool_name",
+        "ResourceTool.proficiency_level",
+        "ResourceTool.last_validated",
+        "FirmCapabilities.capability_name"
+      ]
     },
     {
       "intent": "resources_by_capability",

@@ -40,6 +40,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ResourceCapability"(resource_id, capability_id)
       - "{SCHEMA_NAME}"."FirmTool"(tool_id, tool_name, vendor_name, tool_type, licensing, cost)
       - "{SCHEMA_NAME}"."ToolCapability"(tool_id, capability_id)
+      - "{SCHEMA_NAME}"."ResourceTool"(resource_id, tool_id, proficiency_level, last_validated)
 
     Relationships:
       - "{SCHEMA_NAME}"."ConsultantRoster".title_id → "{SCHEMA_NAME}"."TitleMaster".title_id
@@ -49,14 +50,17 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ClientContactResource".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
       - "{SCHEMA_NAME}"."ToolCapability".tool_id → "{SCHEMA_NAME}"."FirmTool".tool_id
       - "{SCHEMA_NAME}"."ToolCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
+      - "{SCHEMA_NAME}"."ResourceTool".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."ResourceTool".tool_id → "{SCHEMA_NAME}"."FirmTool".tool_id
 
     Notes:
       - Ontology:
           * Tools live in "{SCHEMA_NAME}"."FirmTool" and map to capabilities via "{SCHEMA_NAME}"."ToolCapability".
+          * Resources link directly to tools via "{SCHEMA_NAME}"."ResourceTool" (with proficiency_level and last_validated metadata).
           * Capabilities live in "{SCHEMA_NAME}"."FirmCapabilities" and map to people/resources via "{SCHEMA_NAME}"."ResourceCapability".
           * Client contacts link to resources through "{SCHEMA_NAME}"."ClientContactResource".
       - To answer “who uses <tool>”:
-          FirmTool → ToolCapability → FirmCapabilities → ResourceCapability → ConsolidatedResourceRoster.
+          FirmTool → ResourceTool → ConsolidatedResourceRoster (optionally join ResourceCapability/FirmCapabilities for capability context).
       - To answer “who has <capability>”:
           ResourceCapability → (resource) ← ConsolidatedResourceRoster joined to FirmCapabilities.
       - Managing Directors: join ConsultantRoster → TitleMaster and filter title ILIKE '%Managing Director%' or role_rank ILIKE '%MD%'.
