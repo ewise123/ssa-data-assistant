@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from html import escape
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -129,23 +129,35 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
-# --- Load catalog + config on startup ---
-@app.on_event("startup")
-def _load_catalog_on_start() -> None:
+# --- Load catalog + config helpers ---
+def _load_catalog_and_config() -> Dict[str, Any]:
     global CATALOG, CATALOG_ERROR, CONFIG
-    # Load catalog
+    result: Dict[str, Any] = {"catalog": {}, "config": {}}
+
     try:
         CATALOG = load_catalog(SCHEMA)
         CATALOG_ERROR = None
-        print(f"[catalog] Loaded {len(CATALOG.tables)} tables, {len(CATALOG.fks)} FKs from schema {SCHEMA}")
+        catalog_tables = len(CATALOG.tables)
+        catalog_fks = len(CATALOG.fks)
+        print(f"[catalog] Loaded {catalog_tables} tables, {catalog_fks} FKs from schema {SCHEMA}")
+        result["catalog"] = {
+            "schema": SCHEMA,
+            "tables": catalog_tables,
+            "foreign_keys": catalog_fks,
+            "error": None,
+        }
     except CatalogLoadError as exc:
         CATALOG = None
         CATALOG_ERROR = str(exc)
         print(f"[catalog] FAILED to load: {CATALOG_ERROR}")
+        result["catalog"] = {"schema": SCHEMA, "tables": 0, "foreign_keys": 0, "error": CATALOG_ERROR}
+        return result
     except Exception as exc:
         CATALOG = None
         CATALOG_ERROR = str(exc)
         print(f"[catalog] FAILED to load: {CATALOG_ERROR}")
+        result["catalog"] = {"schema": SCHEMA, "tables": 0, "foreign_keys": 0, "error": CATALOG_ERROR}
+        return result
 
     # Load configuration layers
     try:
@@ -173,6 +185,23 @@ def _load_catalog_on_start() -> None:
         )
     except Exception as exc:
         print(f"[config] Failed to load extended config: {exc}")
+        result["config"] = {"aliases": 0, "join_paths": 0, "semantics_tables": 0, "allowed_columns": 0, "disambiguation_rules": 0, "error": str(exc)}
+    else:
+        result["config"] = {
+            "aliases": sum(len(v) for v in aliases.values()),
+            "join_paths": len(join_map.get("paths", [])),
+            "semantics_tables": sum(len(v) for v in semantics.values()),
+            "allowed_columns": sum(len(v) for v in allowed.values()),
+            "disambiguation_rules": len(disambig.get("rules", [])),
+            "error": None,
+        }
+
+    return result
+
+
+@app.on_event("startup")
+def _load_catalog_on_start() -> None:
+    _load_catalog_and_config()
 
 # --- optional debug endpoint to confirm env is loaded ---
 @app.get("/debug/env", include_in_schema=False)
@@ -220,6 +249,26 @@ def debug_dns():
         response["error"] = str(exc)
 
     return response
+
+
+@app.post("/debug/catalog/reload", include_in_schema=False)
+def debug_catalog_reload(request: Request):
+    expected_token = os.getenv("CATALOG_RELOAD_TOKEN")
+    if expected_token:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing bearer token")
+        token = auth_header.split(" ", 1)[1].strip()
+        if token != expected_token:
+            raise HTTPException(status_code=403, detail="Invalid token")
+
+    result = _load_catalog_and_config()
+    ok = not result["catalog"].get("error") and not result["config"].get("error")
+    return {
+        "ok": bool(ok),
+        "catalog": result["catalog"],
+        "config": result["config"],
+    }
 
 
 # --- optional debug endpoint to see the router's schema snippet for a question ---
