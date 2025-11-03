@@ -26,6 +26,7 @@ FastAPI-powered, AI-assisted SQL exploration for the **Project_Master_Database**
 | ORM/DB access      | `psycopg` (raw queries, read-only)                                                  |
 | Frontend           | Static HTML + Tailwind styles + Anime.js micro-animations                           |
 | Configuration      | CSV/JSON files under `app/config/` for aliases, join map, column semantics, etc.   |
+| Analytics logging  | Lightweight SQLite store (`data/query_metrics.db`) for common & failed queries     |
 
 ---
 
@@ -92,13 +93,16 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 Useful endpoints (all require authentication in production):
 
-| Endpoint                 | Purpose                                  |
-|--------------------------|------------------------------------------|
-| `GET /`                  | Serves the SPA-like static UI            |
-| `POST /ask`              | Core NL → SQL → results pipeline         |
-| `GET /debug/env`         | Inspect environment/load status          |
-| `GET /debug/db`          | Sanity check DB connectivity             |
-| `POST /debug/catalog/reload` | (Optional) Trigger catalog/config reload |
+| Endpoint                      | Purpose                                                           |
+|-------------------------------|-------------------------------------------------------------------|
+| `GET /`                       | Serves the SPA-style UI (now with sticky header + dark mode)      |
+| `POST /ask`                   | Core NL -> SQL -> results pipeline (returns `metadata` context)    |
+| `GET /analytics/common-queries` | Top natural-language prompts surfaced in the UI dropdown          |
+| `GET /analytics/problem-queries`| Aggregated list of empty/error queries for tuning                 |
+| `GET /admin/problem-queries`  | HTML dashboard for the problem-query log                           |
+| `GET /debug/env`              | Inspect environment/load status                                   |
+| `GET /debug/db`               | Sanity check DB connectivity                                      |
+| `POST /debug/catalog/reload`  | (Optional) Trigger catalog/config reload                          |
 
 ---
 
@@ -118,6 +122,7 @@ See **[docs/ADD_NEW_DATA_WORKFLOW.md](docs/ADD_NEW_DATA_WORKFLOW.md)** for step-
 
 - **How to use the assistant**: [docs/USING_SSA_DATA_ASSISTANT.md](docs/USING_SSA_DATA_ASSISTANT.md)
 - Covers launching, dataset selection, example questions, and limitations.
+- **What’s new**: The UI includes a theme toggle, sticky header, and a “Common Queries” dropdown fed by `/analytics/common-queries`. Failed or empty questions are captured for review via `/admin/problem-queries`.
 
 ---
 
@@ -139,6 +144,7 @@ See **[docs/ADD_NEW_DATA_WORKFLOW.md](docs/ADD_NEW_DATA_WORKFLOW.md)** for step-
 | Database connection errors           | Check VPN, firewall, and that `PG_DSN_READONLY` is correct.       |
 | Catalog not loading / stale schema   | Re-run catalog reload endpoint/CLI and confirm config updates.    |
 | UI loads but queries fail            | Inspect browser console & server logs; verify `/ask` response.    |
+| Common/failed query dashboards empty | Hit the app, then use `curl http://localhost:8000/analytics/common-queries` to verify logging. |
 
 ---
 
@@ -146,6 +152,7 @@ See **[docs/ADD_NEW_DATA_WORKFLOW.md](docs/ADD_NEW_DATA_WORKFLOW.md)** for step-
 1. Fork & create feature branch.
 2. Add tests or docs for new behavior.
 3. Update config docs if schema/config files change.
-4. Submit PR with summary + screenshots/logs if relevant.
+4. Commit without `data/query_metrics.db` (generated at runtime; ignored via `.gitignore`).
+5. Submit PR with summary + screenshots/logs if relevant.
 
 For questions, reach out to the Solutions CoE

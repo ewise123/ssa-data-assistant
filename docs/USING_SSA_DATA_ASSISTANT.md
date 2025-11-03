@@ -1,6 +1,6 @@
 # How to Use SSA Data Assistant
 
-Welcome! This guide shows you how to ask questions, what each dataset represents, and the current guardrails when querying the SSA data warehouse.
+Welcome! This guide shows you how to ask questions, what each dataset represents, and the guardrails in place when querying the SSA data warehouse.
 
 ## Table of Contents
 - [Launch the App](#launch-the-app)
@@ -13,18 +13,17 @@ Welcome! This guide shows you how to ask questions, what each dataset represents
 ---
 
 ## Launch the App
-Open the internal URL assigned to SSA Data Assistant—typically:
+Open the internal URL assigned to SSA Data Assistant (ask the Solutions CoE if unsure):
 
 ```
-https://<your-app-host>   # ask Solutions CoE if unsure
+https://<your-app-host>
 ```
 
-You’ll see the familiar interface with:
+You will see the interface with:
+- A sticky header containing the SSA logo, title, and the dark-mode toggle
 - Dataset dropdown
-- Question text area
-- “Ask” button
-- Optional “Show SQL” checkbox
-- Download CSV button (enabled after results load)
+- Question text box and **Submit** button
+- **Common Queries** dropdown populated from recent usage
 
 ---
 
@@ -33,38 +32,40 @@ Select the dataset you want to explore from the dropdown:
 
 | Dataset       | Description                                                                 |
 |---------------|-----------------------------------------------------------------------------|
-| **Clients**       | Client firm profiles, industries, contacts, engagements linkage           |
-| **Consultants**   | Internal + contractor roster, titles, capabilities, tool experience       |
-| **Engagements**   | Project history, start/end dates, linked clients, team members            |
-| **Training**      | Courses, capabilities taught, associated tools/resources                  |
-| **Auto-detect**   | (If available) let the assistant infer the dataset from your question     |
+| **Clients**       | Client firm profiles, industries, contacts, engagement linkage             |
+| **Consultants**   | Internal + contractor roster, titles, capabilities, tool experience        |
+| **Engagements**   | Project history, start/end dates, linked clients, team members             |
+| **Training**      | Courses, capabilities taught, associated tools/resources                   |
+| **Auto (blank)**  | Leave empty to let the assistant infer the best fit                        |
 
 *Tip:* Use the most relevant dataset to steer the assistant toward the correct tables.
 
 ---
 
 ## Ask a Question
-Type a natural-language question, then click **Ask** (or press <kbd>Enter</kbd>).
+Type a natural-language question, then click **Submit** (or press <kbd>Enter</kbd>).
 
 Good questions:
-- reference concrete entities (“clients in biotech”, “consultants who have control tower skills")
-- mention metrics/columns you care about (“industries”, “start date”, “role rank”)
-- specify ordering or filters if relevant (“latest 10”, “after 2023-01-01”)
+- reference concrete entities ("clients in biotech", "consultants who have control tower skills")
+- mention metrics/columns you care about ("industries", "start date", "role rank")
+- specify ordering or filters if relevant ("latest 10", "after 2023-01-01")
 
 Avoid:
 - CREATE/UPDATE/DELETE requests (the assistant is read-only)
-- Extremely broad questions with no context (“Tell me everything”)
+- Extremely broad questions with no context ("Tell me everything")
+
+You can also pick a prompt from **Common Queries** to auto-fill the text box and adjust it before submitting.
 
 ---
 
 ## View SQL & Results
-After a successful request, you’ll see:
-1. **Status line** – e.g., “Done • 12 row(s)”
-2. **Results table** – sortable by copy/paste
-3. **Show SQL** (optional) – reveals the generated SQL
-4. **Download CSV** – exports the current grid
+After a successful request, you will see:
+1. **Row banner** – e.g., "12 rows returned" (or "No rows returned" if empty)
+2. **Results table** – copy cells directly or use keyboard shortcuts
+3. **View SQL Query** accordion – click to reveal the generated SQL
+4. **Copy SQL** button – copies the SQL to the clipboard with a toast confirmation
 
-Use “Show SQL” to review or reuse the query. All SQL is read-only and schema-qualified (e.g., `"Project_Master_Database"."ClientList"`).
+All SQL is read-only and schema-qualified (for example `"Project_Master_Database"."ClientList"`).
 
 ---
 
@@ -75,7 +76,7 @@ Use “Show SQL” to review or reuse the query. All SQL is read-only and schema
 List the top 10 clients by number of active engagements.
 ```
 ```
-Show client firm name, primary contact name, and email for healthcare clients.
+Show client firm name, contact name, email, and the resource who knows them for AIG.
 ```
 
 ### Consultants
@@ -96,19 +97,19 @@ Show engagement name, client firm, and team member names.
 
 ### Training
 ```
-List training courses that teach “Data Visualization” capabilities.
+List training courses that teach "Data Visualization" capabilities.
 ```
 ```
 Show training courses, associated tools, and links to the material.
 ```
 
-Feel free to experiment—if the assistant misunderstands, rephrase with more context (“after 2022”, “Consultants dataset”).
-
 ---
 
 ## Limits & Tips
 - **Read-only**: the assistant never modifies data. All queries are `SELECT`.
-- **Schema awareness**: limited to what’s in the catalog (Project_Master_Database). New tables require a catalog refresh.
-- **Timeouts**: queries have a short statement timeout (default 10s). Summaries on extremely large joins may truncate or timeout.
-- **Ambiguity**: if results don’t look right, double-check the SQL (Show SQL) and clarify the question.
+- **Schema awareness**: limited to what is in the catalog (`Project_Master_Database`). New tables require a catalog refresh.
+- **Timeouts**: queries have a short statement timeout (default 10s). Very large joins may truncate or timeout.
+- **Ambiguity**: if results do not look right, review the SQL and clarify the question.
 - **Security**: only authenticated internal users should access the app; credentials and API keys stay server-side.
+- **Common queries**: the dropdown is powered by `/analytics/common-queries`. Selecting one auto-fills the prompt.
+- **Problem queries**: empty or error responses are logged for tuning and can be reviewed at `/admin/problem-queries` (admin-only).
