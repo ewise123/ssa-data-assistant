@@ -78,6 +78,9 @@ ResourceTool,tool_id,id,=,,FK → FirmTool.tool_id
 ResourceTool,proficiency_level,categorical,ilike,%{term}%,e.g., Beginner/Intermediate/Advanced
 ResourceTool,last_validated,date,between,,
 
+ResourceIC,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
+ResourceIC,ic_id,id,=,,FK -> ICRoster.ic_id
+
 FirmTool,tool_id,id,=,,primary key
 FirmTool,tool_name,categorical,ilike,%{term}%,normalize from tools_aliases
 FirmTool,vendor_name,text,ilike,%{term}%,

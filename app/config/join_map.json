@@ -4,16 +4,44 @@
     {
       "intent": "resources_by_tool",
       "description": "Resources who use a given tool, including proficiency and last validation.",
-      "tables": ["FirmTool", "ResourceTool", "ConsolidatedResourceRoster", "ResourceCapability", "FirmCapabilities"],
+      "tables": [
+        "FirmTool",
+        "ResourceTool",
+        "ConsolidatedResourceRoster",
+        "ResourceCapability",
+        "FirmCapabilities"
+      ],
       "joins": [
-        ["ResourceTool.tool_id", "FirmTool.tool_id"],
-        ["ResourceTool.resource_id", "ConsolidatedResourceRoster.resource_id"],
-        ["ResourceCapability.resource_id", "ConsolidatedResourceRoster.resource_id"],
-        ["ResourceCapability.capability_id", "FirmCapabilities.capability_id"]
+        [
+          "ResourceTool.tool_id",
+          "FirmTool.tool_id"
+        ],
+        [
+          "ResourceTool.resource_id",
+          "ConsolidatedResourceRoster.resource_id"
+        ],
+        [
+          "ResourceCapability.resource_id",
+          "ConsolidatedResourceRoster.resource_id"
+        ],
+        [
+          "ResourceCapability.capability_id",
+          "FirmCapabilities.capability_id"
+        ]
       ],
       "canonical_filters": [
-        {"table": "FirmTool", "column": "tool_name", "preferred_filter": "ilike", "pattern": "%{term}%"},
-        {"table": "FirmCapabilities", "column": "capability_name", "preferred_filter": "ilike", "pattern": "%{term}%"}
+        {
+          "table": "FirmTool",
+          "column": "tool_name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        },
+        {
+          "table": "FirmCapabilities",
+          "column": "capability_name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        }
       ],
       "result_defaults": [
         "ConsolidatedResourceRoster.name AS resource_name",
@@ -27,49 +55,118 @@
     {
       "intent": "resources_by_capability",
       "description": "Resources who have a given capability (e.g., Control Tower, Data Analysis).",
-      "tables": ["ResourceCapability", "ConsolidatedResourceRoster", "FirmCapabilities"],
+      "tables": [
+        "ResourceCapability",
+        "ConsolidatedResourceRoster",
+        "FirmCapabilities"
+      ],
       "joins": [
-        ["ResourceCapability.resource_id", "ConsolidatedResourceRoster.resource_id"],
-        ["ResourceCapability.capability_id", "FirmCapabilities.capability_id"]
+        [
+          "ResourceCapability.resource_id",
+          "ConsolidatedResourceRoster.resource_id"
+        ],
+        [
+          "ResourceCapability.capability_id",
+          "FirmCapabilities.capability_id"
+        ]
       ],
       "canonical_filters": [
-        {"table": "FirmCapabilities", "column": "capability_name", "preferred_filter": "ilike", "pattern": "%{term}%"}
+        {
+          "table": "FirmCapabilities",
+          "column": "capability_name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        }
       ],
-      "result_defaults": ["ConsolidatedResourceRoster.name AS resource_name", "ConsolidatedResourceRoster.role_rank", "FirmCapabilities.capability_name"]
+      "result_defaults": [
+        "ConsolidatedResourceRoster.name AS resource_name",
+        "ConsolidatedResourceRoster.role_rank",
+        "FirmCapabilities.capability_name"
+      ]
     },
     {
       "intent": "managing_directors",
       "description": "Managing Directors (MDs) with optional contact info.",
-      "tables": ["ConsultantRoster", "TitleMaster"],
+      "tables": [
+        "ConsultantRoster",
+        "TitleMaster"
+      ],
       "joins": [
-        ["ConsultantRoster.title_id", "TitleMaster.title_id"]
+        [
+          "ConsultantRoster.title_id",
+          "TitleMaster.title_id"
+        ]
       ],
       "canonical_filters": [
-        {"table": "TitleMaster", "column": "title", "preferred_filter": "ilike", "pattern": "%Managing Director%"},
-        {"table": "ConsultantRoster", "column": "role_rank", "preferred_filter": "ilike", "pattern": "%MD%"}
+        {
+          "table": "TitleMaster",
+          "column": "title",
+          "preferred_filter": "ilike",
+          "pattern": "%Managing Director%"
+        },
+        {
+          "table": "ConsultantRoster",
+          "column": "role_rank",
+          "preferred_filter": "ilike",
+          "pattern": "%MD%"
+        }
       ],
-      "result_defaults": ["ConsultantRoster.name", "TitleMaster.title", "ConsultantRoster.phone_number", "ConsultantRoster.email"]
+      "result_defaults": [
+        "ConsultantRoster.name",
+        "TitleMaster.title",
+        "ConsultantRoster.phone_number",
+        "ConsultantRoster.email"
+      ]
     },
     {
       "intent": "client_contacts",
       "description": "Contacts and emails by client firm.",
-      "tables": ["ClientList", "ClientContact"],
-      "joins": [
-        ["ClientContact.client_id", "ClientList.client_id"]
+      "tables": [
+        "ClientList",
+        "ClientContact"
       ],
-      "result_defaults": ["ClientList.client_firm_name", "ClientContact.contact_name", "ClientContact.email"]
+      "joins": [
+        [
+          "ClientContact.client_id",
+          "ClientList.client_id"
+        ]
+      ],
+      "result_defaults": [
+        "ClientList.client_firm_name",
+        "ClientContact.contact_name",
+        "ClientContact.email"
+      ]
     },
     {
       "intent": "resources_with_client_contacts",
       "description": "Resources tied to client contacts via the ClientContactResource mapping table.",
-      "tables": ["ClientList", "ClientContact", "ClientContactResource", "ConsolidatedResourceRoster"],
+      "tables": [
+        "ClientList",
+        "ClientContact",
+        "ClientContactResource",
+        "ConsolidatedResourceRoster"
+      ],
       "joins": [
-        ["ClientContact.client_id", "ClientList.client_id"],
-        ["ClientContactResource.contact_id", "ClientContact.contact_id"],
-        ["ClientContactResource.resource_id", "ConsolidatedResourceRoster.resource_id"]
+        [
+          "ClientContact.client_id",
+          "ClientList.client_id"
+        ],
+        [
+          "ClientContactResource.contact_id",
+          "ClientContact.contact_id"
+        ],
+        [
+          "ClientContactResource.resource_id",
+          "ConsolidatedResourceRoster.resource_id"
+        ]
       ],
       "canonical_filters": [
-        {"table": "ClientList", "column": "client_firm_name", "preferred_filter": "ilike", "pattern": "%{term}%"}
+        {
+          "table": "ClientList",
+          "column": "client_firm_name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        }
       ],
       "result_defaults": [
         "ClientList.client_firm_name",
@@ -82,41 +179,134 @@
     {
       "intent": "engagements_with_client",
       "description": "Engagements with client firm name.",
-      "tables": ["ClientEngagement", "ClientList"],
-      "joins": [
-        ["ClientEngagement.client_id", "ClientList.client_id"]
+      "tables": [
+        "ClientEngagement",
+        "ClientList"
       ],
-      "result_defaults": ["ClientEngagement.project_name", "ClientEngagement.status", "ClientList.client_firm_name", "ClientEngagement.start_date"]
+      "joins": [
+        [
+          "ClientEngagement.client_id",
+          "ClientList.client_id"
+        ]
+      ],
+      "result_defaults": [
+        "ClientEngagement.project_name",
+        "ClientEngagement.status",
+        "ClientList.client_firm_name",
+        "ClientEngagement.start_date"
+      ]
     },
     {
       "intent": "project_team",
       "description": "Engagement project teams with member names.",
-      "tables": ["ProjectTeam", "ClientEngagement", "ConsolidatedResourceRoster"],
-      "joins": [
-        ["ProjectTeam.engagement_id", "ClientEngagement.engagement_id"],
-        ["ProjectTeam.resource_id", "ConsolidatedResourceRoster.resource_id"]
+      "tables": [
+        "ProjectTeam",
+        "ClientEngagement",
+        "ConsolidatedResourceRoster"
       ],
-      "result_defaults": ["ClientEngagement.project_name", "ProjectTeam.project_role", "ConsolidatedResourceRoster.name AS resource_name"]
+      "joins": [
+        [
+          "ProjectTeam.engagement_id",
+          "ClientEngagement.engagement_id"
+        ],
+        [
+          "ProjectTeam.resource_id",
+          "ConsolidatedResourceRoster.resource_id"
+        ]
+      ],
+      "result_defaults": [
+        "ClientEngagement.project_name",
+        "ProjectTeam.project_role",
+        "ConsolidatedResourceRoster.name AS resource_name"
+      ]
     },
     {
       "intent": "courses_with_capabilities",
       "description": "Training courses and their capabilities.",
-      "tables": ["CourseCapability", "TrainingLearning", "FirmCapabilities"],
-      "joins": [
-        ["CourseCapability.course_id", "TrainingLearning.course_id"],
-        ["CourseCapability.capability_id", "FirmCapabilities.capability_id"]
+      "tables": [
+        "CourseCapability",
+        "TrainingLearning",
+        "FirmCapabilities"
       ],
-      "result_defaults": ["TrainingLearning.course_name", "FirmCapabilities.capability_name", "TrainingLearning.link_to_course"]
+      "joins": [
+        [
+          "CourseCapability.course_id",
+          "TrainingLearning.course_id"
+        ],
+        [
+          "CourseCapability.capability_id",
+          "FirmCapabilities.capability_id"
+        ]
+      ],
+      "result_defaults": [
+        "TrainingLearning.course_name",
+        "FirmCapabilities.capability_name",
+        "TrainingLearning.link_to_course"
+      ]
     },
     {
       "intent": "courses_with_tools",
       "description": "Training courses and their tools.",
-      "tables": ["CourseTool", "TrainingLearning", "FirmTool"],
-      "joins": [
-        ["CourseTool.course_id", "TrainingLearning.course_id"],
-        ["CourseTool.tool_id", "FirmTool.tool_id"]
+      "tables": [
+        "CourseTool",
+        "TrainingLearning",
+        "FirmTool"
       ],
-      "result_defaults": ["TrainingLearning.course_name", "FirmTool.tool_name", "TrainingLearning.link_to_course"]
+      "joins": [
+        [
+          "CourseTool.course_id",
+          "TrainingLearning.course_id"
+        ],
+        [
+          "CourseTool.tool_id",
+          "FirmTool.tool_id"
+        ]
+      ],
+      "result_defaults": [
+        "TrainingLearning.course_name",
+        "FirmTool.tool_name",
+        "TrainingLearning.link_to_course"
+      ]
+    },
+    {
+      "intent": "resources_with_ics",
+      "description": "Independent contractors associated with each resource.",
+      "tables": [
+        "ConsolidatedResourceRoster",
+        "ResourceIC",
+        "ICRoster"
+      ],
+      "joins": [
+        [
+          "ResourceIC.resource_id",
+          "ConsolidatedResourceRoster.resource_id"
+        ],
+        [
+          "ResourceIC.ic_id",
+          "ICRoster.ic_id"
+        ]
+      ],
+      "canonical_filters": [
+        {
+          "table": "ConsolidatedResourceRoster",
+          "column": "name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        },
+        {
+          "table": "ICRoster",
+          "column": "name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        }
+      ],
+      "result_defaults": [
+        "ConsolidatedResourceRoster.name AS resource_name",
+        "ConsolidatedResourceRoster.role_rank",
+        "ICRoster.name AS ic_name",
+        "ICRoster.rate_daily",
+        "ICRoster.email"
+      ]
     }
   ]
 }

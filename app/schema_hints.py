@@ -33,6 +33,7 @@ SCHEMA_HINTS = {
     Tables:
       - "{SCHEMA_NAME}"."ConsultantRoster"(consultant_id, name, title_id, email, phone_number, role_rank)
       - "{SCHEMA_NAME}"."ICRoster"(ic_id, name, rate_daily, email, phone_number)
+      - "{SCHEMA_NAME}"."ResourceIC"(resource_id, ic_id)
       - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id)
       - "{SCHEMA_NAME}"."ClientContactResource"(contact_id, resource_id, relationship_type, notes)
       - "{SCHEMA_NAME}"."TitleMaster"(title_id, title)
@@ -58,6 +59,7 @@ SCHEMA_HINTS = {
           * Tools live in "{SCHEMA_NAME}"."FirmTool" and map to capabilities via "{SCHEMA_NAME}"."ToolCapability".
           * Resources link directly to tools via "{SCHEMA_NAME}"."ResourceTool" (with proficiency_level and last_validated metadata).
           * Capabilities live in "{SCHEMA_NAME}"."FirmCapabilities" and map to people/resources via "{SCHEMA_NAME}"."ResourceCapability".
+          * Independent contractors connect to resources via "{SCHEMA_NAME}"."ResourceIC" (legacy "ConsultantIC" is deprecated).
           * Client contacts link to resources through "{SCHEMA_NAME}"."ClientContactResource".
       - To answer “who uses <tool>”:
           FirmTool → ResourceTool → ConsolidatedResourceRoster (optionally join ResourceCapability/FirmCapabilities for capability context).
