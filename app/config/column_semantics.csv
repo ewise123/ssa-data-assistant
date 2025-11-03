@@ -50,6 +50,7 @@ ConsolidatedResourceRoster,qualifications,text,ilike,%{term}%,
 ConsolidatedResourceRoster,previous_work_experience,text,ilike,%{term}%,
 ConsolidatedResourceRoster,role_rank,categorical,ilike,%{term}%,
 ConsolidatedResourceRoster,title_id,id,=,,FK → TitleMaster.title_id
+ConsolidatedResourceRoster,end_date,date,between,,
 
 ConsultantRoster,consultant_id,id,=,,primary key
 ConsultantRoster,name,person_name,ilike,%{term}%,case-insensitive

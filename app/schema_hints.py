@@ -9,7 +9,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ClientList"(client_id, client_firm_name, industry, field, geographic_presence, ownership_type, pe_firm_id)
       - "{SCHEMA_NAME}"."ClientContact"(contact_id, contact_name, role_to_ssa, organization, internal_role, email, client_id)
       - "{SCHEMA_NAME}"."ClientContactResource"(contact_id, resource_id, relationship_type, notes)
-      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id)
+      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id, end_date)
       - "{SCHEMA_NAME}"."ClientEngagement"(engagement_id, project_name, client_id, problem, approach, milestones_activities, deliverables, recurring_impact_annual, one_time_impact, outcomes_impact, notes, case_study, project_duration_weeks, start_date, status)
       - "{SCHEMA_NAME}"."EngagementContact"(engagement_id, contact_id)
 
@@ -34,7 +34,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ConsultantRoster"(consultant_id, name, title_id, email, phone_number, role_rank)
       - "{SCHEMA_NAME}"."ICRoster"(ic_id, name, rate_daily, email, phone_number)
       - "{SCHEMA_NAME}"."ResourceIC"(resource_id, ic_id)
-      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id)
+      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id, end_date)
       - "{SCHEMA_NAME}"."ClientContactResource"(contact_id, resource_id, relationship_type, notes)
       - "{SCHEMA_NAME}"."TitleMaster"(title_id, title)
       - "{SCHEMA_NAME}"."FirmCapabilities"(capability_id, capability_name)
@@ -59,6 +59,7 @@ SCHEMA_HINTS = {
           * Tools live in "{SCHEMA_NAME}"."FirmTool" and map to capabilities via "{SCHEMA_NAME}"."ToolCapability".
           * Resources link directly to tools via "{SCHEMA_NAME}"."ResourceTool" (with proficiency_level and last_validated metadata).
           * Capabilities live in "{SCHEMA_NAME}"."FirmCapabilities" and map to people/resources via "{SCHEMA_NAME}"."ResourceCapability".
+          * Resource availability can be tracked via "{SCHEMA_NAME}"."ConsolidatedResourceRoster".end_date (null = currently active).
           * Independent contractors connect to resources via "{SCHEMA_NAME}"."ResourceIC" (legacy "ConsultantIC" is deprecated).
           * Client contacts link to resources through "{SCHEMA_NAME}"."ClientContactResource".
       - To answer “who uses <tool>”:
@@ -77,7 +78,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ReviewFormResource"(review_form_id, resource_id)
       - "{SCHEMA_NAME}"."ReviewFormCapability"(review_form_id, capability_id)
       - "{SCHEMA_NAME}"."EngagementCapability"(engagement_id, capability_id)
-      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, role_rank, title_id)
+      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, role_rank, title_id, end_date)
       - "{SCHEMA_NAME}"."FirmCapabilities"(capability_id, capability_name)
       - "{SCHEMA_NAME}"."ClientList"(client_id, client_firm_name)
 
@@ -105,7 +106,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."CourseResource"(course_id, resource_id)
       - "{SCHEMA_NAME}"."CourseCapability"(course_id, capability_id)
       - "{SCHEMA_NAME}"."CourseTool"(course_id, tool_id)
-      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, role_rank, title_id)
+      - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, role_rank, title_id, end_date)
       - "{SCHEMA_NAME}"."FirmCapabilities"(capability_id, capability_name)
       - "{SCHEMA_NAME}"."FirmTool"(tool_id, tool_name, vendor_name, tool_type, licensing, cost)
 
