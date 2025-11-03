@@ -34,6 +34,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ConsultantRoster"(consultant_id, name, title_id, email, phone_number, role_rank)
       - "{SCHEMA_NAME}"."ICRoster"(ic_id, name, rate_daily, email, phone_number)
       - "{SCHEMA_NAME}"."ResourceIC"(resource_id, ic_id)
+      - "{SCHEMA_NAME}"."ICSSAContact"(ic_id, resource_id)
       - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id, end_date)
       - "{SCHEMA_NAME}"."ClientContactResource"(contact_id, resource_id, relationship_type, notes)
       - "{SCHEMA_NAME}"."TitleMaster"(title_id, title)
@@ -49,6 +50,10 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ResourceCapability".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
       - "{SCHEMA_NAME}"."ResourceCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
       - "{SCHEMA_NAME}"."ClientContactResource".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."ResourceIC".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
+      - "{SCHEMA_NAME}"."ResourceIC".ic_id → "{SCHEMA_NAME}"."ICRoster".ic_id
+      - "{SCHEMA_NAME}"."ICSSAContact".ic_id → "{SCHEMA_NAME}"."ICRoster".ic_id
+      - "{SCHEMA_NAME}"."ICSSAContact".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
       - "{SCHEMA_NAME}"."ToolCapability".tool_id → "{SCHEMA_NAME}"."FirmTool".tool_id
       - "{SCHEMA_NAME}"."ToolCapability".capability_id → "{SCHEMA_NAME}"."FirmCapabilities".capability_id
       - "{SCHEMA_NAME}"."ResourceTool".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
@@ -61,6 +66,7 @@ SCHEMA_HINTS = {
           * Capabilities live in "{SCHEMA_NAME}"."FirmCapabilities" and map to people/resources via "{SCHEMA_NAME}"."ResourceCapability".
           * Resource availability can be tracked via "{SCHEMA_NAME}"."ConsolidatedResourceRoster".end_date (null = currently active).
           * Independent contractors connect to resources via "{SCHEMA_NAME}"."ResourceIC" (legacy "ConsultantIC" is deprecated).
+          * SSA contact assignments for ICs live in "{SCHEMA_NAME}"."ICSSAContact" (one or more SSA resources per IC).
           * Client contacts link to resources through "{SCHEMA_NAME}"."ClientContactResource".
       - To answer “who uses <tool>”:
           FirmTool → ResourceTool → ConsolidatedResourceRoster (optionally join ResourceCapability/FirmCapabilities for capability context).

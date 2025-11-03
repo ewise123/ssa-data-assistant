@@ -81,6 +81,8 @@ ResourceTool,last_validated,date,between,,
 
 ResourceIC,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
 ResourceIC,ic_id,id,=,,FK -> ICRoster.ic_id
+ICSSAContact,ic_id,id,=,,FK -> ICRoster.ic_id
+ICSSAContact,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
 
 FirmTool,tool_id,id,=,,primary key
 FirmTool,tool_name,categorical,ilike,%{term}%,normalize from tools_aliases

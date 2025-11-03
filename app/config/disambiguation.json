@@ -1,34 +1,118 @@
 {
   "rules": [
     {
-      "if_contains": ["power bi", "powerbi", "excel", "powerpoint", "disco"],
+      "if_contains": [
+        "independent contractor",
+        "independent contractors",
+        "ic ",
+        " ic",
+        "ics",
+        "ssa contact",
+        "ssa contacts",
+        "ssa & co",
+        "ssa & company"
+      ],
       "dataset": "consultants",
-      "prefer_tables": ["FirmTool", "ToolCapability", "FirmCapabilities", "ResourceCapability", "ConsolidatedResourceRoster"]
+      "prefer_tables": [
+        "ICRoster",
+        "ICSSAContact",
+        "ConsolidatedResourceRoster"
+      ]
     },
     {
-      "if_contains": ["control tower", "data analysis", "process mining", "edi", "footprint assessment", "vendor management", "real estate consolidation", "target operating model", "spans & layers", "spans and layers"],
+      "if_contains": [
+        "power bi",
+        "powerbi",
+        "excel",
+        "powerpoint",
+        "disco"
+      ],
       "dataset": "consultants",
-      "prefer_tables": ["FirmCapabilities", "ResourceCapability", "ConsolidatedResourceRoster"]
+      "prefer_tables": [
+        "FirmTool",
+        "ToolCapability",
+        "FirmCapabilities",
+        "ResourceCapability",
+        "ConsolidatedResourceRoster"
+      ]
     },
     {
-      "if_contains": ["md", "managing director", "managing directors"],
+      "if_contains": [
+        "control tower",
+        "data analysis",
+        "process mining",
+        "edi",
+        "footprint assessment",
+        "vendor management",
+        "real estate consolidation",
+        "target operating model",
+        "spans & layers",
+        "spans and layers"
+      ],
       "dataset": "consultants",
-      "prefer_tables": ["ConsultantRoster", "TitleMaster"]
+      "prefer_tables": [
+        "FirmCapabilities",
+        "ResourceCapability",
+        "ConsolidatedResourceRoster"
+      ]
     },
     {
-      "if_contains": ["contact", "contacts", "email", "emails"],
+      "if_contains": [
+        "md",
+        "managing director",
+        "managing directors"
+      ],
+      "dataset": "consultants",
+      "prefer_tables": [
+        "ConsultantRoster",
+        "TitleMaster"
+      ]
+    },
+    {
+      "if_contains": [
+        "client contact",
+        "client contacts",
+        "client email",
+        "client emails"
+      ],
       "dataset": "clients",
-      "prefer_tables": ["ClientContact", "ClientList"]
+      "prefer_tables": [
+        "ClientContact",
+        "ClientList"
+      ]
     },
     {
-      "if_contains": ["project", "engagement", "team", "milestones", "deliverables", "case study", "case studies"],
+      "if_contains": [
+        "project",
+        "engagement",
+        "team",
+        "milestones",
+        "deliverables",
+        "case study",
+        "case studies"
+      ],
       "dataset": "engagements",
-      "prefer_tables": ["ClientEngagement", "ProjectTeam", "ConsolidatedResourceRoster", "ClientList"]
+      "prefer_tables": [
+        "ClientEngagement",
+        "ProjectTeam",
+        "ConsolidatedResourceRoster",
+        "ClientList"
+      ]
     },
     {
-      "if_contains": ["course", "training", "learning path"],
+      "if_contains": [
+        "course",
+        "training",
+        "learning path"
+      ],
       "dataset": "training",
-      "prefer_tables": ["TrainingLearning", "CourseCapability", "CourseTool", "FirmCapabilities", "FirmTool"]
+      "prefer_tables": [
+        "TrainingLearning",
+        "CourseCapability",
+        "CourseTool",
+        "FirmCapabilities",
+        "FirmTool"
+      ]
     }
   ]
 }

@@ -271,20 +271,10 @@
     {
       "intent": "resources_with_ics",
       "description": "Independent contractors associated with each resource.",
-      "tables": [
-        "ConsolidatedResourceRoster",
-        "ResourceIC",
-        "ICRoster"
-      ],
+      "tables": ["ConsolidatedResourceRoster", "ResourceIC", "ICRoster"],
       "joins": [
-        [
-          "ResourceIC.resource_id",
-          "ConsolidatedResourceRoster.resource_id"
-        ],
-        [
-          "ResourceIC.ic_id",
-          "ICRoster.ic_id"
-        ]
+        ["ResourceIC.resource_id", "ConsolidatedResourceRoster.resource_id"],
+        ["ResourceIC.ic_id", "ICRoster.ic_id"]
       ],
       "canonical_filters": [
         {
@@ -306,6 +296,25 @@
         "ICRoster.name AS ic_name",
         "ICRoster.rate_daily",
         "ICRoster.email"
+      ]
+    },
+    {
+      "intent": "ics_with_ssa_contacts",
+      "description": "SSA resources who serve as points of contact for each independent contractor.",
+      "tables": ["ICRoster", "ICSSAContact", "ConsolidatedResourceRoster"],
+      "joins": [
+        ["ICSSAContact.ic_id", "ICRoster.ic_id"],
+        ["ICSSAContact.resource_id", "ConsolidatedResourceRoster.resource_id"]
+      ],
+      "canonical_filters": [
+        {"table": "ICRoster", "column": "name", "preferred_filter": "ilike", "pattern": "%{term}%"},
+        {"table": "ConsolidatedResourceRoster", "column": "name", "preferred_filter": "ilike", "pattern": "%{term}%"}
+      ],
+      "result_defaults": [
+        "ICRoster.name AS ic_name",
+        "ICRoster.email",
+        "ConsolidatedResourceRoster.name AS ssa_contact",
+        "ConsolidatedResourceRoster.email"
       ]
     }
   ]
