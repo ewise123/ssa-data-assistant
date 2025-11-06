@@ -103,12 +103,6 @@
           "column": "title",
           "preferred_filter": "ilike",
           "pattern": "%Managing Director%"
-        },
-        {
-          "table": "ConsultantRoster",
-          "column": "role_rank",
-          "preferred_filter": "ilike",
-          "pattern": "%MD%"
         }
       ],
       "result_defaults": [
@@ -300,7 +294,7 @@
     },
     {
       "intent": "ics_with_ssa_contacts",
-      "description": "SSA resources who serve as points of contact for each independent contractor.",
+      "description": "SSA resources who serve as points of contact for each independent contractor. Join via ICSSAContact.ic_id = ICRoster.ic_id and ICSSAContact.resource_id = ConsolidatedResourceRoster.resource_id (UUID joins, never email).",
       "tables": ["ICRoster", "ICSSAContact", "ConsolidatedResourceRoster"],
       "joins": [
         ["ICSSAContact.ic_id", "ICRoster.ic_id"],
@@ -313,9 +307,11 @@
       "result_defaults": [
         "ICRoster.name AS ic_name",
         "ICRoster.email",
-        "ConsolidatedResourceRoster.name AS ssa_contact",
-        "ConsolidatedResourceRoster.email"
+        "ConsolidatedResourceRoster.name AS ssa_contact_name",
+        "ConsolidatedResourceRoster.resource_type AS ssa_contact_type",
+        "ConsolidatedResourceRoster.role_rank AS ssa_contact_role"
       ]
     }
   ]
 }
+

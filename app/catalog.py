@@ -116,16 +116,25 @@ BASE_SYNONYMS: Dict[str, List[str]] = {
     "mds": ["title", "role_rank", "titlemaster", "consultantroster"],
 
     # Contacts / Clients
-    "contact": ["contact", "email", "clientcontact", "clientlist"],
-    "contacts": ["contact", "email", "clientcontact", "clientlist"],
+    "contact": ["contact", "email", "icssacontact", "consolidatedresourceroster"],
+    "contacts": ["contact", "email", "icssacontact", "consolidatedresourceroster"],
+    "ssa": ["icssacontact", "consolidatedresourceroster", "icroster"],
     "client": ["clientlist", "client", "client_firm_name"],
 
     # Consultants / ICs
     "consultant": ["consultantroster", "name", "title_id", "phone_number"],
     "ic": ["icroster", "consultantic"],
+    "ssa contact": ["icssacontact", "consolidatedresourceroster", "icroster"],
+    "ssa contacts": ["icssacontact", "consolidatedresourceroster", "icroster"],
+    "ic contact": ["icssacontact", "consolidatedresourceroster", "icroster"],
+    "ic contacts": ["icssacontact", "consolidatedresourceroster", "icroster"],
 
     # Engagements / Projects
     "engagement": ["clientengagement", "projectteam", "projectreviewform"],
+    "capex": ["clientengagement", "capex_baseline"],
+    "capital expenditure": ["clientengagement", "capex_baseline"],
+    "current spend": ["clientengagement", "current_spend_baseline"],
+    "spend baseline": ["clientengagement", "current_spend_baseline"],
 
     # Capabilities
     "skill": ["capability", "capabilities", "resourcecapability", "firmcapabilities"],

@@ -2,12 +2,12 @@
 -- PostgreSQL database dump
 --
 
-\restrict 8iNJ7wwMgSwo6ddm16NKE58SWuShbDJxccYvZfdh9KlfJCcXRYj4cXlOAgjnVKl
+\restrict zmv1dYAUo2JABbwv9fVL6Ci2whVusvJRVED4HjSkI9scIrmdXBYSIn2DaHFBLnB
 
 -- Dumped from database version 15.13
 -- Dumped by pg_dump version 18.0
 
--- Started on 2025-11-03 16:48:34
+-- Started on 2025-11-06 15:09:21
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -109,6 +109,10 @@ CREATE TABLE "Project_Master_Database"."ClientEngagement" (
     start_date date,
     status text,
     end_date date,
+    capex_baseline numeric(14,2),
+    current_spend_baseline numeric(14,2),
+    CONSTRAINT "ck_ClientEngagement_capex_baseline_nonneg" CHECK (((capex_baseline IS NULL) OR (capex_baseline >= (0)::numeric))),
+    CONSTRAINT "ck_ClientEngagement_current_spend_baseline_nonneg" CHECK (((current_spend_baseline IS NULL) OR (current_spend_baseline >= (0)::numeric))),
     CONSTRAINT clientengagement_dates_chk CHECK (((end_date IS NULL) OR (start_date IS NULL) OR (end_date >= start_date)))
 );
 
@@ -453,7 +457,7 @@ CREATE TABLE "Project_Master_Database"."TrainingLearning" (
 ALTER TABLE "Project_Master_Database"."TrainingLearning" OWNER TO capostgresadmin;
 
 --
--- TOC entry 4325 (class 2606 OID 41442432)
+-- TOC entry 4327 (class 2606 OID 41442432)
 -- Name: ClientContactResource ClientContactResource_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -462,7 +466,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientContactResource"
 
 
 --
--- TOC entry 4271 (class 2606 OID 41442174)
+-- TOC entry 4273 (class 2606 OID 41442174)
 -- Name: ClientContact ClientContact_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -471,7 +475,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientContact"
 
 
 --
--- TOC entry 4274 (class 2606 OID 41442188)
+-- TOC entry 4276 (class 2606 OID 41442188)
 -- Name: ClientEngagement ClientEngagement_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -480,7 +484,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientEngagement"
 
 
 --
--- TOC entry 4268 (class 2606 OID 41442159)
+-- TOC entry 4270 (class 2606 OID 41442159)
 -- Name: ClientList ClientList_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -489,7 +493,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientList"
 
 
 --
--- TOC entry 4277 (class 2606 OID 41442202)
+-- TOC entry 4279 (class 2606 OID 41442202)
 -- Name: ConsolidatedResourceRoster ConsolidatedResourceRoster_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -498,7 +502,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ConsolidatedResourceRoster"
 
 
 --
--- TOC entry 4280 (class 2606 OID 41442218)
+-- TOC entry 4282 (class 2606 OID 41442218)
 -- Name: ConsultantRoster ConsultantRoster_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -507,7 +511,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ConsultantRoster"
 
 
 --
--- TOC entry 4316 (class 2606 OID 41442387)
+-- TOC entry 4318 (class 2606 OID 41442387)
 -- Name: CourseCapability CourseCapability_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -516,7 +520,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseCapability"
 
 
 --
--- TOC entry 4319 (class 2606 OID 41442402)
+-- TOC entry 4321 (class 2606 OID 41442402)
 -- Name: CourseResource CourseResource_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -525,7 +529,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseResource"
 
 
 --
--- TOC entry 4313 (class 2606 OID 41442372)
+-- TOC entry 4315 (class 2606 OID 41442372)
 -- Name: CourseTool CourseTool_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -534,7 +538,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseTool"
 
 
 --
--- TOC entry 4301 (class 2606 OID 41442312)
+-- TOC entry 4303 (class 2606 OID 41442312)
 -- Name: EngagementCapability EngagementCapability_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -543,7 +547,7 @@ ALTER TABLE ONLY "Project_Master_Database"."EngagementCapability"
 
 
 --
--- TOC entry 4298 (class 2606 OID 41442297)
+-- TOC entry 4300 (class 2606 OID 41442297)
 -- Name: EngagementContact EngagementContact_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -552,7 +556,7 @@ ALTER TABLE ONLY "Project_Master_Database"."EngagementContact"
 
 
 --
--- TOC entry 4285 (class 2606 OID 41442242)
+-- TOC entry 4287 (class 2606 OID 41442242)
 -- Name: FirmCapabilities FirmCapabilities_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -561,7 +565,7 @@ ALTER TABLE ONLY "Project_Master_Database"."FirmCapabilities"
 
 
 --
--- TOC entry 4287 (class 2606 OID 41442250)
+-- TOC entry 4289 (class 2606 OID 41442250)
 -- Name: FirmTool FirmTool_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -570,7 +574,7 @@ ALTER TABLE ONLY "Project_Master_Database"."FirmTool"
 
 
 --
--- TOC entry 4283 (class 2606 OID 41442234)
+-- TOC entry 4285 (class 2606 OID 41442234)
 -- Name: ICRoster ICRoster_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -579,7 +583,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ICRoster"
 
 
 --
--- TOC entry 4334 (class 2606 OID 41442518)
+-- TOC entry 4336 (class 2606 OID 41442518)
 -- Name: ICSSAContact ICSSAContact_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -588,7 +592,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ICSSAContact"
 
 
 --
--- TOC entry 4264 (class 2606 OID 41442143)
+-- TOC entry 4266 (class 2606 OID 41442143)
 -- Name: PERoster PERoster_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -597,7 +601,7 @@ ALTER TABLE ONLY "Project_Master_Database"."PERoster"
 
 
 --
--- TOC entry 4291 (class 2606 OID 41442266)
+-- TOC entry 4293 (class 2606 OID 41442266)
 -- Name: ProjectReviewForm ProjectReviewForm_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -606,7 +610,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ProjectReviewForm"
 
 
 --
--- TOC entry 4294 (class 2606 OID 41442280)
+-- TOC entry 4296 (class 2606 OID 41442280)
 -- Name: ProjectTeam ProjectTeam_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -615,7 +619,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ProjectTeam"
 
 
 --
--- TOC entry 4322 (class 2606 OID 41442417)
+-- TOC entry 4324 (class 2606 OID 41442417)
 -- Name: ResourceCapability ResourceCapability_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -624,7 +628,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceCapability"
 
 
 --
--- TOC entry 4331 (class 2606 OID 41442501)
+-- TOC entry 4333 (class 2606 OID 41442501)
 -- Name: ResourceIC ResourceIC_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -633,7 +637,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceIC"
 
 
 --
--- TOC entry 4328 (class 2606 OID 41442485)
+-- TOC entry 4330 (class 2606 OID 41442485)
 -- Name: ResourceTool ResourceTool_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -642,7 +646,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceTool"
 
 
 --
--- TOC entry 4304 (class 2606 OID 41442327)
+-- TOC entry 4306 (class 2606 OID 41442327)
 -- Name: ReviewFormCapability ReviewFormCapability_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -651,7 +655,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ReviewFormCapability"
 
 
 --
--- TOC entry 4307 (class 2606 OID 41442342)
+-- TOC entry 4309 (class 2606 OID 41442342)
 -- Name: ReviewFormResource ReviewFormResource_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -660,7 +664,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ReviewFormResource"
 
 
 --
--- TOC entry 4266 (class 2606 OID 41442151)
+-- TOC entry 4268 (class 2606 OID 41442151)
 -- Name: TitleMaster TitleMaster_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -669,7 +673,7 @@ ALTER TABLE ONLY "Project_Master_Database"."TitleMaster"
 
 
 --
--- TOC entry 4310 (class 2606 OID 41442357)
+-- TOC entry 4312 (class 2606 OID 41442357)
 -- Name: ToolCapability ToolCapability_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -678,7 +682,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ToolCapability"
 
 
 --
--- TOC entry 4289 (class 2606 OID 41442258)
+-- TOC entry 4291 (class 2606 OID 41442258)
 -- Name: TrainingLearning TrainingLearning_pkey; Type: CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -687,7 +691,7 @@ ALTER TABLE ONLY "Project_Master_Database"."TrainingLearning"
 
 
 --
--- TOC entry 4272 (class 1259 OID 41442180)
+-- TOC entry 4274 (class 1259 OID 41442180)
 -- Name: idx_clientcontact_client_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -695,7 +699,7 @@ CREATE INDEX idx_clientcontact_client_id ON "Project_Master_Database"."ClientCon
 
 
 --
--- TOC entry 4326 (class 1259 OID 41442467)
+-- TOC entry 4328 (class 1259 OID 41442467)
 -- Name: idx_clientcontactresource_resource_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -703,7 +707,7 @@ CREATE INDEX idx_clientcontactresource_resource_id ON "Project_Master_Database".
 
 
 --
--- TOC entry 4275 (class 1259 OID 41442194)
+-- TOC entry 4277 (class 1259 OID 41442194)
 -- Name: idx_clientengagement_client_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -711,7 +715,7 @@ CREATE INDEX idx_clientengagement_client_id ON "Project_Master_Database"."Client
 
 
 --
--- TOC entry 4269 (class 1259 OID 41442165)
+-- TOC entry 4271 (class 1259 OID 41442165)
 -- Name: idx_clientlist_pe_firm_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -719,7 +723,7 @@ CREATE INDEX idx_clientlist_pe_firm_id ON "Project_Master_Database"."ClientList"
 
 
 --
--- TOC entry 4278 (class 1259 OID 41442208)
+-- TOC entry 4280 (class 1259 OID 41442208)
 -- Name: idx_consolidatedresource_title_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -727,7 +731,7 @@ CREATE INDEX idx_consolidatedresource_title_id ON "Project_Master_Database"."Con
 
 
 --
--- TOC entry 4281 (class 1259 OID 41442224)
+-- TOC entry 4283 (class 1259 OID 41442224)
 -- Name: idx_consultantroster_title_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -735,7 +739,7 @@ CREATE INDEX idx_consultantroster_title_id ON "Project_Master_Database"."Consult
 
 
 --
--- TOC entry 4317 (class 1259 OID 41442464)
+-- TOC entry 4319 (class 1259 OID 41442464)
 -- Name: idx_coursecapability_capability_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -743,7 +747,7 @@ CREATE INDEX idx_coursecapability_capability_id ON "Project_Master_Database"."Co
 
 
 --
--- TOC entry 4320 (class 1259 OID 41442465)
+-- TOC entry 4322 (class 1259 OID 41442465)
 -- Name: idx_courseresource_resource_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -751,7 +755,7 @@ CREATE INDEX idx_courseresource_resource_id ON "Project_Master_Database"."Course
 
 
 --
--- TOC entry 4314 (class 1259 OID 41442463)
+-- TOC entry 4316 (class 1259 OID 41442463)
 -- Name: idx_coursetool_tool_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -759,7 +763,7 @@ CREATE INDEX idx_coursetool_tool_id ON "Project_Master_Database"."CourseTool" US
 
 
 --
--- TOC entry 4302 (class 1259 OID 41442459)
+-- TOC entry 4304 (class 1259 OID 41442459)
 -- Name: idx_engagementcapability_capability_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -767,7 +771,7 @@ CREATE INDEX idx_engagementcapability_capability_id ON "Project_Master_Database"
 
 
 --
--- TOC entry 4299 (class 1259 OID 41442458)
+-- TOC entry 4301 (class 1259 OID 41442458)
 -- Name: idx_engagementcontact_contact_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -775,7 +779,7 @@ CREATE INDEX idx_engagementcontact_contact_id ON "Project_Master_Database"."Enga
 
 
 --
--- TOC entry 4335 (class 1259 OID 41442529)
+-- TOC entry 4337 (class 1259 OID 41442529)
 -- Name: idx_icssacontact_resource_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -783,7 +787,7 @@ CREATE INDEX idx_icssacontact_resource_id ON "Project_Master_Database"."ICSSACon
 
 
 --
--- TOC entry 4292 (class 1259 OID 41442272)
+-- TOC entry 4294 (class 1259 OID 41442272)
 -- Name: idx_projectreviewform_engagement_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -791,7 +795,7 @@ CREATE INDEX idx_projectreviewform_engagement_id ON "Project_Master_Database"."P
 
 
 --
--- TOC entry 4295 (class 1259 OID 41442291)
+-- TOC entry 4297 (class 1259 OID 41442291)
 -- Name: idx_projectteam_engagement_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -799,7 +803,7 @@ CREATE INDEX idx_projectteam_engagement_id ON "Project_Master_Database"."Project
 
 
 --
--- TOC entry 4296 (class 1259 OID 41442292)
+-- TOC entry 4298 (class 1259 OID 41442292)
 -- Name: idx_projectteam_resource_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -807,7 +811,7 @@ CREATE INDEX idx_projectteam_resource_id ON "Project_Master_Database"."ProjectTe
 
 
 --
--- TOC entry 4323 (class 1259 OID 41442466)
+-- TOC entry 4325 (class 1259 OID 41442466)
 -- Name: idx_resourcecapability_capability_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -815,7 +819,7 @@ CREATE INDEX idx_resourcecapability_capability_id ON "Project_Master_Database"."
 
 
 --
--- TOC entry 4332 (class 1259 OID 41442512)
+-- TOC entry 4334 (class 1259 OID 41442512)
 -- Name: idx_resourceic_ic_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -823,7 +827,7 @@ CREATE INDEX idx_resourceic_ic_id ON "Project_Master_Database"."ResourceIC" USIN
 
 
 --
--- TOC entry 4329 (class 1259 OID 41442496)
+-- TOC entry 4331 (class 1259 OID 41442496)
 -- Name: idx_resourcetool_tool_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -831,7 +835,7 @@ CREATE INDEX idx_resourcetool_tool_id ON "Project_Master_Database"."ResourceTool
 
 
 --
--- TOC entry 4305 (class 1259 OID 41442460)
+-- TOC entry 4307 (class 1259 OID 41442460)
 -- Name: idx_reviewformcapability_capability_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -839,7 +843,7 @@ CREATE INDEX idx_reviewformcapability_capability_id ON "Project_Master_Database"
 
 
 --
--- TOC entry 4308 (class 1259 OID 41442461)
+-- TOC entry 4310 (class 1259 OID 41442461)
 -- Name: idx_reviewformresource_resource_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -847,7 +851,7 @@ CREATE INDEX idx_reviewformresource_resource_id ON "Project_Master_Database"."Re
 
 
 --
--- TOC entry 4311 (class 1259 OID 41442462)
+-- TOC entry 4313 (class 1259 OID 41442462)
 -- Name: idx_toolcapability_capability_id; Type: INDEX; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -855,7 +859,7 @@ CREATE INDEX idx_toolcapability_capability_id ON "Project_Master_Database"."Tool
 
 
 --
--- TOC entry 4362 (class 2606 OID 41442433)
+-- TOC entry 4364 (class 2606 OID 41442433)
 -- Name: ClientContactResource ClientContactResource_contact_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -864,7 +868,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientContactResource"
 
 
 --
--- TOC entry 4363 (class 2606 OID 41442438)
+-- TOC entry 4365 (class 2606 OID 41442438)
 -- Name: ClientContactResource ClientContactResource_resource_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -873,7 +877,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientContactResource"
 
 
 --
--- TOC entry 4337 (class 2606 OID 41442175)
+-- TOC entry 4339 (class 2606 OID 41442175)
 -- Name: ClientContact ClientContact_client_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -882,7 +886,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientContact"
 
 
 --
--- TOC entry 4338 (class 2606 OID 41442189)
+-- TOC entry 4340 (class 2606 OID 41442189)
 -- Name: ClientEngagement ClientEngagement_client_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -891,7 +895,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientEngagement"
 
 
 --
--- TOC entry 4336 (class 2606 OID 41442160)
+-- TOC entry 4338 (class 2606 OID 41442160)
 -- Name: ClientList ClientList_pe_firm_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -900,7 +904,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ClientList"
 
 
 --
--- TOC entry 4339 (class 2606 OID 41442203)
+-- TOC entry 4341 (class 2606 OID 41442203)
 -- Name: ConsolidatedResourceRoster ConsolidatedResourceRoster_title_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -909,7 +913,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ConsolidatedResourceRoster"
 
 
 --
--- TOC entry 4340 (class 2606 OID 41442219)
+-- TOC entry 4342 (class 2606 OID 41442219)
 -- Name: ConsultantRoster ConsultantRoster_title_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -918,7 +922,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ConsultantRoster"
 
 
 --
--- TOC entry 4356 (class 2606 OID 41442393)
+-- TOC entry 4358 (class 2606 OID 41442393)
 -- Name: CourseCapability CourseCapability_capability_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -927,7 +931,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseCapability"
 
 
 --
--- TOC entry 4357 (class 2606 OID 41442388)
+-- TOC entry 4359 (class 2606 OID 41442388)
 -- Name: CourseCapability CourseCapability_course_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -936,7 +940,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseCapability"
 
 
 --
--- TOC entry 4358 (class 2606 OID 41442403)
+-- TOC entry 4360 (class 2606 OID 41442403)
 -- Name: CourseResource CourseResource_course_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -945,7 +949,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseResource"
 
 
 --
--- TOC entry 4359 (class 2606 OID 41442408)
+-- TOC entry 4361 (class 2606 OID 41442408)
 -- Name: CourseResource CourseResource_resource_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -954,7 +958,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseResource"
 
 
 --
--- TOC entry 4354 (class 2606 OID 41442373)
+-- TOC entry 4356 (class 2606 OID 41442373)
 -- Name: CourseTool CourseTool_course_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -963,7 +967,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseTool"
 
 
 --
--- TOC entry 4355 (class 2606 OID 41442378)
+-- TOC entry 4357 (class 2606 OID 41442378)
 -- Name: CourseTool CourseTool_tool_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -972,7 +976,7 @@ ALTER TABLE ONLY "Project_Master_Database"."CourseTool"
 
 
 --
--- TOC entry 4346 (class 2606 OID 41442318)
+-- TOC entry 4348 (class 2606 OID 41442318)
 -- Name: EngagementCapability EngagementCapability_capability_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -981,7 +985,7 @@ ALTER TABLE ONLY "Project_Master_Database"."EngagementCapability"
 
 
 --
--- TOC entry 4347 (class 2606 OID 41442313)
+-- TOC entry 4349 (class 2606 OID 41442313)
 -- Name: EngagementCapability EngagementCapability_engagement_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -990,7 +994,7 @@ ALTER TABLE ONLY "Project_Master_Database"."EngagementCapability"
 
 
 --
--- TOC entry 4344 (class 2606 OID 41442303)
+-- TOC entry 4346 (class 2606 OID 41442303)
 -- Name: EngagementContact EngagementContact_contact_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -999,7 +1003,7 @@ ALTER TABLE ONLY "Project_Master_Database"."EngagementContact"
 
 
 --
--- TOC entry 4345 (class 2606 OID 41442298)
+-- TOC entry 4347 (class 2606 OID 41442298)
 -- Name: EngagementContact EngagementContact_engagement_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1008,7 +1012,7 @@ ALTER TABLE ONLY "Project_Master_Database"."EngagementContact"
 
 
 --
--- TOC entry 4368 (class 2606 OID 41442519)
+-- TOC entry 4370 (class 2606 OID 41442519)
 -- Name: ICSSAContact ICSSAContact_ic_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1017,7 +1021,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ICSSAContact"
 
 
 --
--- TOC entry 4369 (class 2606 OID 41442524)
+-- TOC entry 4371 (class 2606 OID 41442524)
 -- Name: ICSSAContact ICSSAContact_resource_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1026,7 +1030,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ICSSAContact"
 
 
 --
--- TOC entry 4341 (class 2606 OID 41442267)
+-- TOC entry 4343 (class 2606 OID 41442267)
 -- Name: ProjectReviewForm ProjectReviewForm_engagement_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1035,7 +1039,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ProjectReviewForm"
 
 
 --
--- TOC entry 4342 (class 2606 OID 41442281)
+-- TOC entry 4344 (class 2606 OID 41442281)
 -- Name: ProjectTeam ProjectTeam_engagement_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1044,7 +1048,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ProjectTeam"
 
 
 --
--- TOC entry 4343 (class 2606 OID 41442286)
+-- TOC entry 4345 (class 2606 OID 41442286)
 -- Name: ProjectTeam ProjectTeam_resource_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1053,7 +1057,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ProjectTeam"
 
 
 --
--- TOC entry 4360 (class 2606 OID 41442423)
+-- TOC entry 4362 (class 2606 OID 41442423)
 -- Name: ResourceCapability ResourceCapability_capability_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1062,7 +1066,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceCapability"
 
 
 --
--- TOC entry 4361 (class 2606 OID 41442418)
+-- TOC entry 4363 (class 2606 OID 41442418)
 -- Name: ResourceCapability ResourceCapability_resource_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1071,7 +1075,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceCapability"
 
 
 --
--- TOC entry 4348 (class 2606 OID 41442333)
+-- TOC entry 4350 (class 2606 OID 41442333)
 -- Name: ReviewFormCapability ReviewFormCapability_capability_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1080,7 +1084,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ReviewFormCapability"
 
 
 --
--- TOC entry 4349 (class 2606 OID 41442328)
+-- TOC entry 4351 (class 2606 OID 41442328)
 -- Name: ReviewFormCapability ReviewFormCapability_review_form_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1089,7 +1093,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ReviewFormCapability"
 
 
 --
--- TOC entry 4350 (class 2606 OID 41442348)
+-- TOC entry 4352 (class 2606 OID 41442348)
 -- Name: ReviewFormResource ReviewFormResource_resource_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1098,7 +1102,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ReviewFormResource"
 
 
 --
--- TOC entry 4351 (class 2606 OID 41442343)
+-- TOC entry 4353 (class 2606 OID 41442343)
 -- Name: ReviewFormResource ReviewFormResource_review_form_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1107,7 +1111,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ReviewFormResource"
 
 
 --
--- TOC entry 4352 (class 2606 OID 41442363)
+-- TOC entry 4354 (class 2606 OID 41442363)
 -- Name: ToolCapability ToolCapability_capability_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1116,7 +1120,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ToolCapability"
 
 
 --
--- TOC entry 4353 (class 2606 OID 41442358)
+-- TOC entry 4355 (class 2606 OID 41442358)
 -- Name: ToolCapability ToolCapability_tool_id_fkey; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1125,7 +1129,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ToolCapability"
 
 
 --
--- TOC entry 4366 (class 2606 OID 41442507)
+-- TOC entry 4368 (class 2606 OID 41442507)
 -- Name: ResourceIC resourceic_ic_fk; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1134,7 +1138,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceIC"
 
 
 --
--- TOC entry 4367 (class 2606 OID 41442502)
+-- TOC entry 4369 (class 2606 OID 41442502)
 -- Name: ResourceIC resourceic_resource_fk; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1143,7 +1147,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceIC"
 
 
 --
--- TOC entry 4364 (class 2606 OID 41442486)
+-- TOC entry 4366 (class 2606 OID 41442486)
 -- Name: ResourceTool resourcetool_resource_fk; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1152,7 +1156,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceTool"
 
 
 --
--- TOC entry 4365 (class 2606 OID 41442491)
+-- TOC entry 4367 (class 2606 OID 41442491)
 -- Name: ResourceTool resourcetool_tool_fk; Type: FK CONSTRAINT; Schema: Project_Master_Database; Owner: capostgresadmin
 --
 
@@ -1161,7 +1165,7 @@ ALTER TABLE ONLY "Project_Master_Database"."ResourceTool"
 
 
 --
--- TOC entry 4528 (class 0 OID 0)
+-- TOC entry 4530 (class 0 OID 0)
 -- Dependencies: 12
 -- Name: SCHEMA "Project_Master_Database"; Type: ACL; Schema: -; Owner: capostgresadmin
 --
@@ -1170,7 +1174,7 @@ GRANT USAGE ON SCHEMA "Project_Master_Database" TO chat_reader;
 
 
 --
--- TOC entry 4529 (class 0 OID 0)
+-- TOC entry 4531 (class 0 OID 0)
 -- Dependencies: 380
 -- Name: TABLE "ClientContact"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1179,7 +1183,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ClientContact" TO chat_reader;
 
 
 --
--- TOC entry 4530 (class 0 OID 0)
+-- TOC entry 4532 (class 0 OID 0)
 -- Dependencies: 399
 -- Name: TABLE "ClientContactResource"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1188,7 +1192,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ClientContactResource" TO chat_
 
 
 --
--- TOC entry 4531 (class 0 OID 0)
+-- TOC entry 4533 (class 0 OID 0)
 -- Dependencies: 381
 -- Name: TABLE "ClientEngagement"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1197,7 +1201,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ClientEngagement" TO chat_reade
 
 
 --
--- TOC entry 4532 (class 0 OID 0)
+-- TOC entry 4534 (class 0 OID 0)
 -- Dependencies: 379
 -- Name: TABLE "ClientList"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1206,7 +1210,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ClientList" TO chat_reader;
 
 
 --
--- TOC entry 4533 (class 0 OID 0)
+-- TOC entry 4535 (class 0 OID 0)
 -- Dependencies: 382
 -- Name: TABLE "ConsolidatedResourceRoster"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1215,7 +1219,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ConsolidatedResourceRoster" TO 
 
 
 --
--- TOC entry 4534 (class 0 OID 0)
+-- TOC entry 4536 (class 0 OID 0)
 -- Dependencies: 383
 -- Name: TABLE "ConsultantRoster"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1224,7 +1228,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ConsultantRoster" TO chat_reade
 
 
 --
--- TOC entry 4535 (class 0 OID 0)
+-- TOC entry 4537 (class 0 OID 0)
 -- Dependencies: 396
 -- Name: TABLE "CourseCapability"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1233,7 +1237,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."CourseCapability" TO chat_reade
 
 
 --
--- TOC entry 4536 (class 0 OID 0)
+-- TOC entry 4538 (class 0 OID 0)
 -- Dependencies: 397
 -- Name: TABLE "CourseResource"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1242,7 +1246,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."CourseResource" TO chat_reader;
 
 
 --
--- TOC entry 4537 (class 0 OID 0)
+-- TOC entry 4539 (class 0 OID 0)
 -- Dependencies: 395
 -- Name: TABLE "CourseTool"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1251,7 +1255,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."CourseTool" TO chat_reader;
 
 
 --
--- TOC entry 4538 (class 0 OID 0)
+-- TOC entry 4540 (class 0 OID 0)
 -- Dependencies: 391
 -- Name: TABLE "EngagementCapability"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1260,7 +1264,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."EngagementCapability" TO chat_r
 
 
 --
--- TOC entry 4539 (class 0 OID 0)
+-- TOC entry 4541 (class 0 OID 0)
 -- Dependencies: 390
 -- Name: TABLE "EngagementContact"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1269,7 +1273,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."EngagementContact" TO chat_read
 
 
 --
--- TOC entry 4540 (class 0 OID 0)
+-- TOC entry 4542 (class 0 OID 0)
 -- Dependencies: 385
 -- Name: TABLE "FirmCapabilities"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1278,7 +1282,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."FirmCapabilities" TO chat_reade
 
 
 --
--- TOC entry 4541 (class 0 OID 0)
+-- TOC entry 4543 (class 0 OID 0)
 -- Dependencies: 386
 -- Name: TABLE "FirmTool"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1287,7 +1291,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."FirmTool" TO chat_reader;
 
 
 --
--- TOC entry 4542 (class 0 OID 0)
+-- TOC entry 4544 (class 0 OID 0)
 -- Dependencies: 384
 -- Name: TABLE "ICRoster"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1296,7 +1300,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ICRoster" TO chat_reader;
 
 
 --
--- TOC entry 4543 (class 0 OID 0)
+-- TOC entry 4545 (class 0 OID 0)
 -- Dependencies: 402
 -- Name: TABLE "ICSSAContact"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1305,7 +1309,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ICSSAContact" TO chat_reader;
 
 
 --
--- TOC entry 4544 (class 0 OID 0)
+-- TOC entry 4546 (class 0 OID 0)
 -- Dependencies: 377
 -- Name: TABLE "PERoster"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1314,7 +1318,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."PERoster" TO chat_reader;
 
 
 --
--- TOC entry 4545 (class 0 OID 0)
+-- TOC entry 4547 (class 0 OID 0)
 -- Dependencies: 388
 -- Name: TABLE "ProjectReviewForm"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1323,7 +1327,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ProjectReviewForm" TO chat_read
 
 
 --
--- TOC entry 4546 (class 0 OID 0)
+-- TOC entry 4548 (class 0 OID 0)
 -- Dependencies: 389
 -- Name: TABLE "ProjectTeam"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1332,7 +1336,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ProjectTeam" TO chat_reader;
 
 
 --
--- TOC entry 4547 (class 0 OID 0)
+-- TOC entry 4549 (class 0 OID 0)
 -- Dependencies: 398
 -- Name: TABLE "ResourceCapability"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1341,7 +1345,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ResourceCapability" TO chat_rea
 
 
 --
--- TOC entry 4548 (class 0 OID 0)
+-- TOC entry 4550 (class 0 OID 0)
 -- Dependencies: 401
 -- Name: TABLE "ResourceIC"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1350,7 +1354,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ResourceIC" TO chat_reader;
 
 
 --
--- TOC entry 4549 (class 0 OID 0)
+-- TOC entry 4551 (class 0 OID 0)
 -- Dependencies: 400
 -- Name: TABLE "ResourceTool"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1359,7 +1363,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ResourceTool" TO chat_reader;
 
 
 --
--- TOC entry 4550 (class 0 OID 0)
+-- TOC entry 4552 (class 0 OID 0)
 -- Dependencies: 392
 -- Name: TABLE "ReviewFormCapability"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1368,7 +1372,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ReviewFormCapability" TO chat_r
 
 
 --
--- TOC entry 4551 (class 0 OID 0)
+-- TOC entry 4553 (class 0 OID 0)
 -- Dependencies: 393
 -- Name: TABLE "ReviewFormResource"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1377,7 +1381,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ReviewFormResource" TO chat_rea
 
 
 --
--- TOC entry 4552 (class 0 OID 0)
+-- TOC entry 4554 (class 0 OID 0)
 -- Dependencies: 378
 -- Name: TABLE "TitleMaster"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1386,7 +1390,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."TitleMaster" TO chat_reader;
 
 
 --
--- TOC entry 4553 (class 0 OID 0)
+-- TOC entry 4555 (class 0 OID 0)
 -- Dependencies: 394
 -- Name: TABLE "ToolCapability"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1395,7 +1399,7 @@ GRANT SELECT ON TABLE "Project_Master_Database"."ToolCapability" TO chat_reader;
 
 
 --
--- TOC entry 4554 (class 0 OID 0)
+-- TOC entry 4556 (class 0 OID 0)
 -- Dependencies: 387
 -- Name: TABLE "TrainingLearning"; Type: ACL; Schema: Project_Master_Database; Owner: capostgresadmin
 --
@@ -1411,11 +1415,11 @@ GRANT SELECT ON TABLE "Project_Master_Database"."TrainingLearning" TO chat_reade
 ALTER DEFAULT PRIVILEGES FOR ROLE capostgresadmin IN SCHEMA "Project_Master_Database" GRANT SELECT ON TABLES TO chat_reader;
 
 
--- Completed on 2025-11-03 16:48:35
+-- Completed on 2025-11-06 15:09:23
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 8iNJ7wwMgSwo6ddm16NKE58SWuShbDJxccYvZfdh9KlfJCcXRYj4cXlOAgjnVKl
+\unrestrict zmv1dYAUo2JABbwv9fVL6Ci2whVusvJRVED4HjSkI9scIrmdXBYSIn2DaHFBLnB
 

@@ -3,106 +3,107 @@ ClientList,client_id,id,=,,primary key
 ClientList,client_firm_name,text,ilike,%{term}%,normalize from clients_aliases
 ClientList,industry,categorical,ilike,%{term}%,use allowed list if available
 ClientList,field,categorical,ilike,%{term}%,
-ClientList,geographic_presence,categorical,ilike,%{term}%,
+ClientList,geographic_presence,categorical,ilike,%{term}%,use allowed values where present
 ClientList,ownership_type,categorical,ilike,%{term}%,
-ClientList,pe_firm_id,id,=,,FK to PE firms (if exists)
-
+ClientList,pe_firm_id,id,=,,FK -> PERoster.pe_firm_id
 ClientContact,contact_id,id,=,,primary key
-ClientContact,client_id,id,=,,FK → ClientList.client_id
+ClientContact,client_id,id,=,,FK -> ClientList.client_id
 ClientContact,contact_name,person_name,ilike,%{term}%,case-insensitive
-ClientContact,email,email,=,,exact match or domain filter
+ClientContact,email,email,=,,exact or domain match
 ClientContact,role_to_ssa,text,ilike,%{term}%,
 ClientContact,organization,text,ilike,%{term}%,
 ClientContact,internal_role,text,ilike,%{term}%,
-ClientContactResource,contact_id,id,=,,FK → ClientContact.contact_id
-ClientContactResource,resource_id,id,=,,FK → ConsolidatedResourceRoster.resource_id
-ClientContactResource,relationship_type,text,ilike,%{term}%,
-ClientContactResource,notes,text,ilike,%{term}%,
-
+ClientContactResource,contact_id,id,=,,FK -> ClientContact.contact_id
+ClientContactResource,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
 ClientEngagement,engagement_id,id,=,,primary key
-ClientEngagement,client_id,id,=,,FK → ClientList.client_id
+ClientEngagement,client_id,id,=,,FK -> ClientList.client_id
 ClientEngagement,project_name,text,ilike,%{term}%,
 ClientEngagement,problem,text,ilike,%{term}%,
 ClientEngagement,approach,text,ilike,%{term}%,
 ClientEngagement,milestones_activities,text,ilike,%{term}%,
 ClientEngagement,deliverables,text,ilike,%{term}%,
-ClientEngagement,recurring_impact_annual,numeric,between,,
-ClientEngagement,one_time_impact,numeric,between,,
+ClientEngagement,recurring_impact_annual,numeric,between,,annual recurring impact (USD)
+ClientEngagement,one_time_impact,numeric,between,,one-time impact (USD)
 ClientEngagement,outcomes_impact,text,ilike,%{term}%,
 ClientEngagement,notes,text,ilike,%{term}%,
-ClientEngagement,case_study,boolean,=,,
-ClientEngagement,project_duration_weeks,numeric,between,,
-ClientEngagement,start_date,date,between,,"expects YYYY-MM-DD"
-ClientEngagement,status,categorical,ilike,%{term}%,
-
-ProjectTeam,team_id,id,=,,
-ProjectTeam,engagement_id,id,=,,FK → ClientEngagement.engagement_id
-ProjectTeam,resource_id,id,=,,FK → ConsolidatedResourceRoster.resource_id
+ClientEngagement,case_study,text,ilike,%{term}%,free-form flag/summary
+ClientEngagement,start_date,date,between,,expects YYYY-MM-DD
+ClientEngagement,status,categorical,ilike,%{term}%,see allowed engagement statuses
+ClientEngagement,end_date,date,between,,expects YYYY-MM-DD
+ClientEngagement,capex_baseline,numeric,between,,baseline capital expenditure (USD)
+ClientEngagement,current_spend_baseline,numeric,between,,baseline current spend (USD)
+EngagementContact,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
+EngagementContact,contact_id,id,=,,FK -> ClientContact.contact_id
+EngagementCapability,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
+EngagementCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
+ProjectTeam,team_id,id,=,,primary key
+ProjectTeam,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
+ProjectTeam,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
 ProjectTeam,project_role,categorical,ilike,%{term}%,
 ProjectTeam,start_date,date,between,,
 ProjectTeam,end_date,date,between,,
-
+ProjectReviewForm,review_form_id,id,=,,primary key
+ProjectReviewForm,name,text,ilike,%{term}%,
+ProjectReviewForm,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
+ProjectReviewForm,specific_expertise,text,ilike,%{term}%,
+ReviewFormResource,review_form_id,id,=,,FK -> ProjectReviewForm.review_form_id
+ReviewFormResource,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
+ReviewFormCapability,review_form_id,id,=,,FK -> ProjectReviewForm.review_form_id
+ReviewFormCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
 ConsolidatedResourceRoster,resource_id,id,=,,primary key
 ConsolidatedResourceRoster,name,person_name,ilike,%{term}%,case-insensitive
 ConsolidatedResourceRoster,resource_type,categorical,ilike,%{term}%,
 ConsolidatedResourceRoster,education,text,ilike,%{term}%,
 ConsolidatedResourceRoster,qualifications,text,ilike,%{term}%,
 ConsolidatedResourceRoster,previous_work_experience,text,ilike,%{term}%,
-ConsolidatedResourceRoster,role_rank,categorical,ilike,%{term}%,
-ConsolidatedResourceRoster,title_id,id,=,,FK → TitleMaster.title_id
-ConsolidatedResourceRoster,end_date,date,between,,
-
+ConsolidatedResourceRoster,role_rank,categorical,ilike,%{term}%,use allowed role_rank values
+ConsolidatedResourceRoster,title_id,id,=,,FK -> TitleMaster.title_id
 ConsultantRoster,consultant_id,id,=,,primary key
 ConsultantRoster,name,person_name,ilike,%{term}%,case-insensitive
-ConsultantRoster,title_id,id,=,,FK → TitleMaster.title_id
-ConsultantRoster,email,email,=,,exact match or domain filter
+ConsultantRoster,title_id,id,=,,FK -> TitleMaster.title_id
+ConsultantRoster,email,email,=,,exact or domain match
 ConsultantRoster,phone_number,phone,=,,format (999) 999-9999
-ConsultantRoster,role_rank,categorical,ilike,%{term}%,
-
 ICRoster,ic_id,id,=,,primary key
 ICRoster,name,person_name,ilike,%{term}%,
-ICRoster,rate_daily,numeric,between,,
+ICRoster,rate_daily,numeric,between,,daily rate (USD)
 ICRoster,email,email,=,,
 ICRoster,phone_number,phone,=,,format (999) 999-9999
-
-TitleMaster,title_id,id,=,,primary key
-TitleMaster,title,categorical,ilike,%{term}%,e.g., 'Managing Director', 'Associate Director'
-
-FirmCapabilities,capability_id,id,=,,primary key
-FirmCapabilities,capability_name,categorical,ilike,%{term}%,normalize from capabilities_aliases
-
-ResourceCapability,resource_id,id,=,,FK → ConsolidatedResourceRoster.resource_id
-ResourceCapability,capability_id,id,=,,FK → FirmCapabilities.capability_id
-
-ResourceTool,resource_id,id,=,,FK → ConsolidatedResourceRoster.resource_id
-ResourceTool,tool_id,id,=,,FK → FirmTool.tool_id
-ResourceTool,proficiency_level,categorical,ilike,%{term}%,e.g., Beginner/Intermediate/Advanced
-ResourceTool,last_validated,date,between,,
-
 ResourceIC,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
 ResourceIC,ic_id,id,=,,FK -> ICRoster.ic_id
-ICSSAContact,ic_id,id,=,,FK -> ICRoster.ic_id
-ICSSAContact,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
-
+ICSSAContact,ic_id,id,=,,UUID; join to ICRoster.ic_id (do not match against emails)
+ICSSAContact,resource_id,id,=,,UUID; join to ConsolidatedResourceRoster.resource_id for SSA resource details
+TitleMaster,title_id,id,=,,primary key
+TitleMaster,title,categorical,ilike,%{term}%,"e.g., 'Managing Director', 'Associate Director'"
+FirmCapabilities,capability_id,id,=,,primary key
+FirmCapabilities,capability_name,categorical,ilike,%{term}%,normalize from capabilities_aliases
+ResourceCapability,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
+ResourceCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
 FirmTool,tool_id,id,=,,primary key
 FirmTool,tool_name,categorical,ilike,%{term}%,normalize from tools_aliases
 FirmTool,vendor_name,text,ilike,%{term}%,
 FirmTool,tool_type,categorical,ilike,%{term}%,
 FirmTool,licensing,text,ilike,%{term}%,
 FirmTool,cost,numeric,between,,
-
-ToolCapability,tool_id,id,=,,FK → FirmTool.tool_id
-ToolCapability,capability_id,id,=,,FK → FirmCapabilities.capability_id
-
+ToolCapability,tool_id,id,=,,FK -> FirmTool.tool_id
+ToolCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
+ResourceTool,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
+ResourceTool,tool_id,id,=,,FK -> FirmTool.tool_id
+ResourceTool,proficiency_level,categorical,ilike,%{term}%,"e.g., Beginner/Intermediate/Advanced"
+ResourceTool,last_validated,date,between,,
 TrainingLearning,course_id,id,=,,primary key
 TrainingLearning,course_name,text,ilike,%{term}%,
 TrainingLearning,link_to_course,url,=,,exact match
 TrainingLearning,pre_requisites,text,ilike,%{term}%,
 TrainingLearning,learning_path,text,ilike,%{term}%,
 TrainingLearning,success_criteria,text,ilike,%{term}%,
-
-CourseCapability,course_id,id,=,,FK → TrainingLearning.course_id
-CourseCapability,capability_id,id,=,,FK → FirmCapabilities.capability_id
-
-CourseTool,course_id,id,=,,FK → TrainingLearning.course_id
-CourseTool,tool_id,id,=,,FK → FirmTool.tool_id
+CourseCapability,course_id,id,=,,FK -> TrainingLearning.course_id
+CourseCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
+CourseTool,course_id,id,=,,FK -> TrainingLearning.course_id
+CourseTool,tool_id,id,=,,FK -> FirmTool.tool_id
+CourseResource,course_id,id,=,,FK -> TrainingLearning.course_id
+CourseResource,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
+EngagementCapability,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
+EngagementCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
+PERoster,pe_firm_id,id,=,,primary key
+PERoster,pe_firm_name,text,ilike,%{term}%,
+PERoster,fund_size,text,ilike,%{term}%,
