@@ -135,13 +135,36 @@
             <select class="form-select w-full h-12 px-4 rounded-lg border-cool-gray/50 focus:ring-sky-blue focus:border-sky-blue bg-white dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white" id="common-queries">
               <option value="">Loading common queries...</option>
             </select>
-          </div>
-
-          <div class="mt-6">
-            <div class="h-1 rounded-full bg-cool-gray/20 dark:bg-gray-700 overflow-hidden">
-              <div class="h-full bg-sky-blue transition-all duration-300" id="progress-bar" style="width: 0%;"></div>
             </div>
-          </div>
+
+            <div class="mt-4">
+              <button
+                id="projects-toggle"
+                aria-expanded="false"
+                aria-controls="projects-panel"
+                class="flex w-full items-center justify-between gap-3 rounded-lg border border-cool-gray/50 bg-white/80 px-4 py-3 text-left text-gray-800 shadow-sm transition-colors hover:border-sky-blue hover:bg-white dark:border-gray-600/70 dark:bg-gray-800/80 dark:text-gray-100"
+                type="button"
+              >
+                <span class="flex items-center gap-2 text-base font-semibold">
+                  <span class="material-symbols-outlined text-sky-blue">folder_open</span>
+                  Projects
+                </span>
+                <span class="material-symbols-outlined text-gray-500 transition-transform dark:text-gray-300" id="projects-toggle-icon">expand_more</span>
+              </button>
+              <div
+                class="mt-3 hidden overflow-hidden rounded-lg border border-cool-gray/30 bg-white/80 dark:border-gray-700/80 dark:bg-gray-900/50"
+                id="projects-panel"
+              >
+                <div class="px-4 py-3 text-sm hidden" id="projects-status"></div>
+                <ul class="divide-y divide-cool-gray/20 dark:divide-gray-700/60" id="projects-list"></ul>
+              </div>
+            </div>
+
+            <div class="mt-6">
+              <div class="h-1 rounded-full bg-cool-gray/20 dark:bg-gray-700 overflow-hidden">
+                <div class="h-full bg-sky-blue transition-all duration-300" id="progress-bar" style="width: 0%;"></div>
+              </div>
+            </div>
         </div>
 
         <div class="mt-8">
@@ -218,28 +241,252 @@
     const emptyState = document.getElementById("empty-state");
     const populatedState = document.getElementById("populated-state");
     const sqlOutput = document.getElementById("sql-output");
-      const resultsHead = document.getElementById("results-head");
-      const resultsBody = document.getElementById("results-body");
-      const rowCount = document.getElementById("row-count");
-      const copySqlButton = document.getElementById("copy-sql-button");
-      const toast = document.getElementById("toast");
-      const progressBar = document.getElementById("progress-bar");
-      const themeToggleButton = document.getElementById("theme-toggle");
-      const themeToggleIcon = document.getElementById("theme-toggle-icon");
-      const rootElement = document.documentElement;
-      const bodyElement = document.body;
-      const commonQueriesSelect = document.getElementById("common-queries");
-      const THEME_STORAGE_KEY = "ssa-theme";
-      const systemPrefersDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    const resultsHead = document.getElementById("results-head");
+    const resultsBody = document.getElementById("results-body");
+    const rowCount = document.getElementById("row-count");
+    const copySqlButton = document.getElementById("copy-sql-button");
+    const toast = document.getElementById("toast");
+    const progressBar = document.getElementById("progress-bar");
+    const themeToggleButton = document.getElementById("theme-toggle");
+    const themeToggleIcon = document.getElementById("theme-toggle-icon");
+    const rootElement = document.documentElement;
+    const bodyElement = document.body;
+    const commonQueriesSelect = document.getElementById("common-queries");
+    const projectsToggle = document.getElementById("projects-toggle");
+    const projectsPanel = document.getElementById("projects-panel");
+    const projectsList = document.getElementById("projects-list");
+    const projectsStatus = document.getElementById("projects-status");
+    const projectsToggleIcon = document.getElementById("projects-toggle-icon");
+    const THEME_STORAGE_KEY = "ssa-theme";
+    const systemPrefersDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
       // --- Anime helpers ---
-      const PREFERS_REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const A = (opts) => { if (!PREFERS_REDUCED && window.anime) window.anime(opts); };
+    const PREFERS_REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const A = (opts) => { if (!PREFERS_REDUCED && window.anime) window.anime(opts); };
 
-      // Theme toggling
-      function getCurrentTheme() {
-        if (rootElement.dataset.theme === "dark") return "dark";
-        if (rootElement.dataset.theme === "light") return "light";
+    let projectsLoaded = false;
+    let projectsLoading = false;
+    let projectsExpanded = false;
+
+    function normalizeText(value, fallback) {
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed || fallback;
+      }
+      if (value === null || value === undefined) {
+        return fallback;
+      }
+      const stringValue = String(value).trim();
+      return stringValue || fallback;
+    }
+
+    function setProjectsStatus(message, variant = "info") {
+      if (!projectsStatus) return;
+      const infoClasses = ["text-gray-600", "dark:text-gray-300"];
+      const errorClasses = ["text-error-text", "dark:text-red-400"];
+      if (!message) {
+        projectsStatus.classList.add("hidden");
+        projectsStatus.textContent = "";
+        [...infoClasses, ...errorClasses].forEach((cls) => projectsStatus.classList.remove(cls));
+        return;
+      }
+      projectsStatus.classList.remove("hidden");
+      projectsStatus.textContent = message;
+      if (variant === "error") {
+        infoClasses.forEach((cls) => projectsStatus.classList.remove(cls));
+        errorClasses.forEach((cls) => projectsStatus.classList.add(cls));
+      } else {
+        errorClasses.forEach((cls) => projectsStatus.classList.remove(cls));
+        infoClasses.forEach((cls) => projectsStatus.classList.add(cls));
+      }
+    }
+
+    function renderProjects(items) {
+      if (!projectsList) return;
+      projectsList.innerHTML = "";
+      if (!Array.isArray(items) || items.length === 0) {
+        setProjectsStatus("No projects available right now.");
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      items.forEach((item) => {
+        if (!item) return;
+        const projectName = normalizeText(item.project_name, "Untitled project");
+        const clientName = normalizeText(item.client_firm_name, "Unknown client");
+        const industry = normalizeText(item.industry, "Industry unavailable");
+
+        const li = document.createElement("li");
+        li.className = "bg-white/70 px-4 py-3 text-sm text-gray-800 dark:bg-gray-900/40 dark:text-gray-100";
+
+        const title = document.createElement("p");
+        title.className = "font-semibold";
+        title.textContent = projectName;
+
+        const meta = document.createElement("p");
+        meta.className = "mt-1 text-xs text-gray-600 dark:text-gray-300";
+        meta.textContent = `${clientName} | ${industry}`;
+
+        li.appendChild(title);
+        li.appendChild(meta);
+        fragment.appendChild(li);
+      });
+
+      projectsList.appendChild(fragment);
+      setProjectsStatus("");
+
+      A({
+        targets: '#projects-list li',
+        opacity: [0, 1],
+        translateY: [8, 0],
+        delay: window.anime ? window.anime.stagger(18) : 0,
+        duration: 240,
+        easing: 'easeOutQuad'
+      });
+
+      if (!window.anime || PREFERS_REDUCED) {
+        Array.from(projectsList.children).forEach((child) => {
+          child.style.opacity = "1";
+          child.style.transform = "none";
+        });
+      }
+    }
+
+    async function fetchProjects() {
+      if (!projectsPanel || projectsLoading) return;
+      projectsLoading = true;
+      try {
+        const response = await fetch("/projects");
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        const items = Array.isArray(payload?.items) ? payload.items : [];
+        renderProjects(items);
+        projectsLoaded = true;
+      } catch (err) {
+        console.error("Failed to load projects", err);
+        projectsLoaded = false;
+        if (projectsList) {
+          projectsList.innerHTML = "";
+        }
+        setProjectsStatus("Unable to load projects right now.", "error");
+      } finally {
+        projectsLoading = false;
+      }
+    }
+
+    function openProjectsPanel() {
+      if (!projectsPanel || projectsExpanded) return;
+      projectsExpanded = true;
+      if (projectsToggle) {
+        projectsToggle.setAttribute("aria-expanded", "true");
+      }
+      projectsPanel.classList.remove("hidden");
+      const targetHeight = projectsPanel.scrollHeight || 160;
+      projectsPanel.style.height = "0px";
+      projectsPanel.style.opacity = "0";
+      A({
+        targets: '#projects-panel',
+        height: [0, targetHeight],
+        opacity: [0, 1],
+        duration: 260,
+        easing: 'easeOutCubic',
+        complete: () => {
+          projectsPanel.style.height = "auto";
+          projectsPanel.style.opacity = "";
+        }
+      });
+
+      if (!window.anime || PREFERS_REDUCED) {
+        projectsPanel.style.height = "auto";
+        projectsPanel.style.opacity = "";
+      }
+
+      if (projectsToggleIcon) {
+        A({
+          targets: '#projects-toggle-icon',
+          rotate: [0, 180],
+          duration: 220,
+          easing: 'easeInOutQuad'
+        });
+        if (!window.anime || PREFERS_REDUCED) {
+          projectsToggleIcon.style.transform = "rotate(180deg)";
+        }
+      }
+    }
+
+    function closeProjectsPanel() {
+      if (!projectsPanel || !projectsExpanded) return;
+      projectsExpanded = false;
+      if (projectsToggle) {
+        projectsToggle.setAttribute("aria-expanded", "false");
+      }
+      const currentHeight = projectsPanel.scrollHeight;
+      projectsPanel.style.height = `${currentHeight}px`;
+      projectsPanel.style.opacity = "1";
+      A({
+        targets: '#projects-panel',
+        height: [currentHeight, 0],
+        opacity: [1, 0],
+        duration: 220,
+        easing: 'easeInCubic',
+        complete: () => {
+          projectsPanel.classList.add("hidden");
+          projectsPanel.style.height = "";
+          projectsPanel.style.opacity = "";
+        }
+      });
+
+      if (!window.anime || PREFERS_REDUCED) {
+        projectsPanel.classList.add("hidden");
+        projectsPanel.style.height = "";
+        projectsPanel.style.opacity = "";
+      }
+
+      if (projectsToggleIcon) {
+        A({
+          targets: '#projects-toggle-icon',
+          rotate: [180, 0],
+          duration: 220,
+          easing: 'easeInOutQuad'
+        });
+        if (!window.anime || PREFERS_REDUCED) {
+          projectsToggleIcon.style.transform = "";
+        }
+      }
+    }
+
+    function toggleProjectsPanel() {
+      if (!projectsToggle || !projectsPanel) return;
+      if (projectsExpanded) {
+        closeProjectsPanel();
+        return;
+      }
+      if (!projectsLoaded && !projectsLoading) {
+        setProjectsStatus("Loading projects...");
+        fetchProjects();
+      }
+      openProjectsPanel();
+    }
+
+    if (projectsToggle) {
+      projectsToggle.addEventListener("click", toggleProjectsPanel);
+    }
+
+    async function initProjectsSection() {
+      if (!projectsToggle || !projectsPanel || projectsLoaded || projectsLoading) return;
+      setProjectsStatus("Loading projects...");
+      await fetchProjects();
+      if (!projectsExpanded && projectsLoaded) {
+        setProjectsStatus("");
+      }
+    }
+
+    // Theme toggling
+    function getCurrentTheme() {
+      if (rootElement.dataset.theme === "dark") return "dark";
+      if (rootElement.dataset.theme === "light") return "light";
         return rootElement.classList.contains("dark") ? "dark" : "light";
       }
 
@@ -506,6 +753,7 @@
     });
     copySqlButton.addEventListener("click", copySqlToClipboard);
     loadCommonQueries();
+    initProjectsSection().catch((err) => console.error("Failed to initialize projects dropdown", err));
   </script>
 </body>
 </html>

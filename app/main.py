@@ -467,6 +467,27 @@ def debug_db():
         }
 
 
+@app.get("/projects")
+def list_projects():
+    projects_sql = f'''
+        SELECT DISTINCT
+            ce.project_name,
+            cl.client_firm_name,
+            cl.industry
+        FROM "{SCHEMA}"."ClientEngagement" AS ce
+        JOIN "{SCHEMA}"."ClientList" AS cl
+          ON ce.client_id = cl.client_id
+        WHERE ce.project_name IS NOT NULL AND ce.project_name <> ''
+        ORDER BY ce.project_name ASC, cl.client_firm_name ASC
+    '''
+    try:
+        _, rows = run_select(projects_sql)
+    except Exception as exc:
+        print(f"[projects] failed to load projects: {exc}")
+        raise HTTPException(status_code=500, detail="Could not load projects.") from exc
+    return {"items": rows}
+
+
 @app.get("/analytics/common-queries")
 def analytics_common_queries(limit: int = 10):
     limit = max(1, min(limit, 50))
