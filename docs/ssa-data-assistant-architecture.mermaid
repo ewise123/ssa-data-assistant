@@ -1,0 +1,58 @@
+%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#003399', 'primaryTextColor': '#fff', 'primaryBorderColor': '#002266', 'lineColor': '#333', 'secondaryColor': '#f0f4ff', 'tertiaryColor': '#fff5f0', 'fontSize': '13px', 'edgeLabelBackground': '#ffffff'}, 'flowchart': {'nodeSpacing': 30, 'rankSpacing': 60, 'curve': 'basis', 'htmlLabels': true}, 'themeCSS': '.edgeLabel { color: #000000 !important; } .edgeLabel p { color: #000000 !important; } .edgeLabel span { color: #000000 !important; }'}}%%
+
+flowchart TD
+
+    User(["SSA & Co Employee<br/>(Browser)"])
+
+    subgraph LOCAL["Local / Not Yet Hosted"]
+
+        Frontend["Static SPA<br/>index.html<br/>Tailwind CSS + Anime.js + Vanilla JS"]
+
+        subgraph BE["FastAPI Backend  (Python 3.11+ / Uvicorn)"]
+            App["main.py<br/>Route Handler"]
+            Router["catalog.py<br/>Schema Router"]
+            AISQL["ai_sql.py<br/>AI SQL Generator"]
+            Validator["sql_validator.py<br/>SQL Validator"]
+            ConfigL["config_loader.py<br/>Config Loader"]
+            Metrics["query_metrics.py<br/>Query Metrics"]
+        end
+
+        SQLite[("SQLite<br/>query_metrics.db")]
+
+    end
+
+    OpenAI{{"OpenAI API<br/>gpt-4o-mini"}}
+    PG[("PostgreSQL<br/>Project_Master_Database<br/>(read-only)")]
+    KeyVault{{"Azure Key Vault<br/>(optional / future)"}}
+    CDNs["Public CDNs<br/>Tailwind / Anime.js / Google Fonts"]
+
+    User -- "HTTPS" --> Frontend
+    Frontend -- "POST /ask<br/>GET /projects" --> App
+
+    App --> Router
+    App --> AISQL
+    App --> Validator
+    App --> ConfigL
+    App --> Metrics
+
+    AISQL -- "Chat Completions<br/>REST API" --> OpenAI
+    App -- "SELECT queries<br/>psycopg v3, 10s timeout" --> PG
+    Metrics -- "INSERT / SELECT" --> SQLite
+    KeyVault -. "Secrets at startup<br/>DefaultAzureCredential" .-> App
+    Frontend -. "CDN loads" .-> CDNs
+
+    classDef userNode fill:#DE4702,stroke:#b33a02,color:#fff,stroke-width:2px,font-weight:bold
+    classDef feNode fill:#e0e7ff,stroke:#003399,color:#1e3a5f,stroke-width:2px
+    classDef beNode fill:#003399,stroke:#002266,color:#fff,stroke-width:2px
+    classDef beChild fill:#1a4dc4,stroke:#003399,color:#fff,stroke-width:1px
+    classDef dbNode fill:#2d6a4f,stroke:#1b4332,color:#fff,stroke-width:2px
+    classDef extNode fill:#7c3aed,stroke:#5b21b6,color:#fff,stroke-width:2px
+    classDef cdnNode fill:#e5e7eb,stroke:#9ca3af,color:#374151,stroke-width:1px
+
+    class User userNode
+    class Frontend feNode
+    class App beNode
+    class Router,AISQL,Validator,ConfigL,Metrics beChild
+    class PG,SQLite dbNode
+    class OpenAI,KeyVault extNode
+    class CDNs cdnNode
