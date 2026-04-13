@@ -83,13 +83,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `/projects` | GET | Distinct project names from ClientEngagement |
 | `/analytics/common-queries` | GET | Top queries by frequency |
 | `/analytics/problem-queries` | GET | Failed/empty queries |
-| `/admin/problem-queries` | GET | HTML dashboard for problem queries |
-| `/debug/env` | GET | Environment/config status |
-| `/debug/db` | GET | DB connectivity check |
-| `/debug/dns` | GET | DNS resolution check |
-| `/debug/router?q=...` | GET | Schema routing debug for a question |
-| `/debug/config` | GET | Config summary counts |
-| `/debug/catalog/reload` | POST | Hot-reload catalog + config |
+| `/admin/problem-queries` | GET | HTML dashboard for problem queries (requires `ADMIN_TOKEN`) |
+| `/admin/golden-queries` | GET | List verified golden queries (requires `ADMIN_TOKEN`) |
+| `/admin/verifiable-queries` | GET | Queries available for verification (requires `ADMIN_TOKEN`) |
+| `/admin/verify-query` | POST | Promote a query to golden (requires `ADMIN_TOKEN`) |
+| `/feedback` | POST | Record user feedback (does NOT auto-verify) |
+| `/debug/env` | GET | Environment/config status (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
+| `/debug/db` | GET | DB connectivity check (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
+| `/debug/dns` | GET | DNS resolution check (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
+| `/debug/router?q=...` | GET | Schema routing debug (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
+| `/debug/config` | GET | Config summary counts (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
+| `/debug/catalog/reload` | POST | Hot-reload catalog + config (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
 
 ## Coding Conventions
 
@@ -111,6 +115,10 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - **Secrets never sent to browser** — OpenAI key and DSN are server-side only
 - `.env` is gitignored; production uses Azure App Settings / Key Vault
 - HTML in admin dashboard uses `html.escape()` for XSS prevention
+- **Debug endpoints gated** — all `/debug/*` return 404 unless `ENABLE_DEBUG_ENDPOINTS=true`
+- **Admin endpoints require auth** — all `/admin/*` require `Authorization: Bearer <ADMIN_TOKEN>`
+- **Feedback does not auto-verify** — positive feedback is recorded but does not promote queries to golden; admin must explicitly verify via `/admin/verify-query`
+- **Sensitive configs gitignored** — `clients_aliases.csv` and `schema_descriptions.yaml` contain business data and are not committed; see `.example` files for format
 
 ## When Modifying Config
 
