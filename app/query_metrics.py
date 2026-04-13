@@ -51,6 +51,8 @@ def _ensure_database() -> None:
             conn.execute("ALTER TABLE query_log ADD COLUMN verified INTEGER DEFAULT 0")
         if "feedback" not in columns:
             conn.execute("ALTER TABLE query_log ADD COLUMN feedback TEXT")
+        if "feedback_comment" not in columns:
+            conn.execute("ALTER TABLE query_log ADD COLUMN feedback_comment TEXT")
         pending = conn.execute(
             "SELECT id, question FROM query_log WHERE canonical_question IS NULL OR canonical_question = ''"
         ).fetchall()
@@ -180,12 +182,13 @@ def record_feedback(
     query_id: int,
     feedback: str,
     corrected_sql: Optional[str] = None,
+    comment: Optional[str] = None,
 ) -> bool:
     """Record user feedback on a query. Returns True if the query was found."""
     with _conn() as conn:
         cur = conn.execute(
-            "UPDATE query_log SET feedback = ? WHERE id = ?",
-            (feedback, query_id),
+            "UPDATE query_log SET feedback = ?, feedback_comment = ? WHERE id = ?",
+            (feedback, comment, query_id),
         )
         # If user provided corrected SQL, store it and auto-verify
         if corrected_sql and feedback == "positive":

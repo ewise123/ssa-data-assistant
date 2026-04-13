@@ -769,6 +769,7 @@ class FeedbackRequest(BaseModel):
     query_id: int
     feedback: str  # "positive" or "negative"
     corrected_sql: Optional[str] = None
+    comment: Optional[str] = None
 
 
 @app.post("/feedback")
@@ -777,7 +778,7 @@ def submit_feedback(req: FeedbackRequest):
     if req.feedback not in ("positive", "negative"):
         raise HTTPException(status_code=400, detail="feedback must be 'positive' or 'negative'")
 
-    found = record_feedback(req.query_id, req.feedback, req.corrected_sql)
+    found = record_feedback(req.query_id, req.feedback, req.corrected_sql, req.comment)
     if not found:
         raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
 
