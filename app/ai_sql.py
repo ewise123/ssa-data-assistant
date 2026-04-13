@@ -25,7 +25,15 @@ Rules:
 - Use JOINs only across relationships implied by matching *_id columns or those shown in the hint.
 - Prefer simple WHERE filters and ILIKE for text search.
 - ALWAYS include LIMIT 100 unless the user asked for a smaller limit.
-- PostgreSQL dialect. Return ONLY the SQL (no commentary)."""
+- PostgreSQL dialect. Return ONLY the SQL (no commentary).
+
+Important query patterns:
+- When the user asks "who knows" or "connected to" or "resources for contacts", ALWAYS SELECT columns from BOTH sides of the relationship (e.g., both the contact name AND the resource name).
+- When the user asks for "everything about X" or "all info about X", SELECT all columns from the main table, not just the ID and name.
+- When listing resources/people with optional attributes (tools, capabilities), prefer LEFT JOIN so resources without that attribute still appear.
+- Use SELECT DISTINCT when JOINing through mapping tables that could produce duplicate rows.
+- Title matching: "Director" means EXACTLY the title 'Director' (use ILIKE '%Director%' AND NOT ILIKE '%Managing Director%' if needed to exclude MDs). "Managing Director" is a separate, specific title. Do not confuse the two.
+- For date filters: use date columns with BETWEEN or >= / < operators, e.g., start_date >= '2024-01-01' AND start_date < '2025-01-01'. Always include related context columns (project name, client, dates) not just IDs."""
 
 # === FEW-SHOT EXAMPLES ===
 _FEWSHOTS = [
@@ -99,6 +107,35 @@ LIMIT 100'''
 FROM "{SCHEMA_NAME}"."CourseCapability" cc
 JOIN "{SCHEMA_NAME}"."TrainingLearning" tl ON tl.course_id = cc.course_id
 JOIN "{SCHEMA_NAME}"."FirmCapabilities" fc ON fc.capability_id = cc.capability_id
+LIMIT 100'''
+    },
+
+    # --- Director vs Managing Director ---
+    {
+        "user": "Show me Directors and their email addresses.",
+        "assistant": f'''SELECT cr.name, tm.title, cr.email
+FROM "{SCHEMA_NAME}"."ConsultantRoster" cr
+JOIN "{SCHEMA_NAME}"."TitleMaster" tm ON tm.title_id = cr.title_id
+WHERE tm.title ILIKE '%Director%' AND tm.title NOT ILIKE '%Managing Director%'
+LIMIT 100'''
+    },
+
+    # --- Everything about a client ---
+    {
+        "user": "Show me everything about AIG.",
+        "assistant": f'''SELECT *
+FROM "{SCHEMA_NAME}"."ClientList"
+WHERE client_firm_name ILIKE '%AIG%'
+LIMIT 100'''
+    },
+
+    # --- Projects with dates ---
+    {
+        "user": "What projects started in 2024?",
+        "assistant": f'''SELECT ce.project_name, cl.client_firm_name, ce.start_date, ce.status
+FROM "{SCHEMA_NAME}"."ClientEngagement" ce
+JOIN "{SCHEMA_NAME}"."ClientList" cl ON cl.client_id = ce.client_id
+WHERE ce.start_date >= '2024-01-01' AND ce.start_date < '2025-01-01'
 LIMIT 100'''
     },
 ]
