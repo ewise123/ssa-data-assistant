@@ -1,0 +1,862 @@
+schema: Project_Master_Database
+generated_by: app.schema_enrichment
+tables:
+  ClientContact:
+    columns:
+      contact_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each client contact.
+      contact_name:
+        type: text
+        semantic_type: person_name
+        preferred_filter: ilike
+        notes: case-insensitive
+        sample_values: [Carlos Lagravere, Emily Spaulding (Freluc), Melissa Twinning-Davis, DJ Conrad, Mike Glumac, Dave Cortese]
+        description: Full name of the client contact person.
+      role_to_ssa:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Day to Day Lead, Key Stakeholder, Executive Sponsor]
+        description: The client contact's role or relationship to the SSA project team.
+      organization:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Service Operations, CRBS, C-Suite]
+        description: The client contact's affiliated department or business unit.
+      internal_role:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [CFO, 'Dir, Vendor Strategy', 'VP, Service Operations', CDIO, Head of Business Management, CAO]
+        description: The client contact's official job title or position within their organization.
+      email:
+        type: text
+        semantic_type: email
+        preferred_filter: '='
+        notes: exact or domain match
+        sample_values: [david.cortese@mheducation.com, carlos.lagravere@maesa.com, dconrad@partssource.com, melissa.twinningdavis@AIG.com,
+          emily.spaulding@AIG.com, michael.glumac@theremigroup.com]
+        description: The client contact's business email address.
+      client_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientList.client_id
+        description: Unique identifier linking the contact to a specific client.
+    description: This table stores key contact information for client representatives involved in projects.
+  ClientContactResource:
+    columns:
+      contact_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientContact.contact_id
+        description: Unique identifier for a client's contact person.
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Unique identifier for the resource allocated to the client's contact.
+    description: Stores the associations between clients' contacts and the resources assigned to them within projects.
+  ClientEngagement:
+    columns:
+      engagement_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each client engagement record.
+      project_name:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Real Estate 2025 - AIG, Vendor Control Tower - PS, S&OP Optimization - MAESA, ITSM Assessment - MHE]
+        description: Name of the client project or initiative.
+      client_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientList.client_id
+        description: Unique identifier for the client associated with the engagement.
+      problem:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: ['Global insurance company’s real estate portfolio was shaped by reactive, siloed decision-making,
+            resulting in a footprint that was misaligned with business needs
+
+            The company needed to establish a unified portfolio strategy aligned with business and HR priorities to reshape
+            their footprint around future business needs and culture to unlock long-term value', "Private Equity owned Education\
+            \ Publisher was experiencing above average IT Service Management costs for its scale and was considering non-renewal\
+            \ of an outsourcing partner contract \nMandate included an assessment of ITSM processes, recommendations for improvement,\
+            \ action to take regarding outsourcing partner", 'A PE-owned healthcare services firm faced margin losses from
+            poor visibility into vendor coverage and capabilities, leading to inefficient service decisions
+
+            The firm required a centralized vendor portal and process to improve operational decision-making, and accelerate
+            their tech transformation.', 'PE-owned beauty brand incubator experienced rapid growth over the last several years,
+            and faced poor service levels and high inventory due to inadequate processes and controls to support this growth
+
+            The company needed help to implement process controls, optimize their inventory, and bring visibility to operations
+            to rapidly triage working capital']
+        description: Description of the client's business challenge or issue addressed by the engagement.
+      approach:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: ["Baselined critical current-state supply chain processes identifying key optimization opportunities\n\
+            Highlighted major data gaps to address and aligned on critical details required by operational teams to ensure\
+            \ success\nDeveloped, socialized, and deployed multiple PowerBI toolsets to enhance visibility into inventory\
+            \ levels and performance KPIs \nImplemented responsibility matrix to ensure sustainability\nDemonstrated use of\
+            \ tools to drive improved immediate decision-making", "Analyzed real estate asset portfolio to baseline footprint,\
+            \ costs, and utilization\nBuilt a data-driven, scenario-based model utilizing holistic evaluation criteria to\
+            \ assess sites and identify opportunities for value creation\nAligned business unit leads and corporate stakeholders\
+            \ to ensure strategic coherence\nDelivered executive-level briefings and prioritized real estate action plan \n\
+            Created detailed financial business cases and tactical execution roadmaps of proposed real estate actions", 'Evaluated
+            outsourcing partner’s contributions through internal benchmarking and cost modeling which identified their limited
+            value for cost
+
+            Assessed company’s hardware and software asset management processes
+
+            Utilized process mining of ServiceNow data to identify Service Desk inefficiencies and bottlenecks
+
+            Created empirical end user profiles by function and management level for software and hardware assets based on
+            current installed base', 'Rapidly assessed current state data, defining core data architecture, data flows, and
+            new objects as needed
+
+            Established a central Vendor Data Lake
+
+            Developed SSA Control Tower to support Vendor Operations team
+
+            Defined KPIs aligned to broader business goals
+
+            Identified considerations for upcoming Salesforce migration, ensuring sustainability of new capabilities
+
+            Developed SOPs and review cadences to define usage of the Control Tower and drive master data remediation']
+        description: Summary of the methods and strategies used to address the client's problem.
+      milestones_activities:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Key milestones and activities completed during the engagement.
+      deliverables:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Specific outputs or products delivered to the client as part of the engagement.
+      recurring_impact_annual:
+        type: numeric
+        semantic_type: numeric
+        preferred_filter: between
+        notes: annual recurring impact (USD)
+        description: Estimated annual recurring financial impact or savings resulting from the engagement.
+      one_time_impact:
+        type: numeric
+        semantic_type: numeric
+        preferred_filter: between
+        notes: one-time impact (USD)
+        description: Estimated one-time financial impact or savings achieved through the engagement.
+      outcomes_impact:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: ["Saved 30% of outsource costs through insourcing recommendation\n\nIdentified software asset management\
+            \ inefficiencies leading to 15% cost reduction opportunity \n\nDetermined potential for 10% reduction in service\
+            \ desk labor through redesign of non-employee lifecycle management", 'Deployed SSA Control Tower, increasing Vendor
+            Operations capacity by 30%
+
+
+            Enabled asset-level visibility to negotiated vs actual costs, enabling a 20% reduction in Preventive Maintenance
+            costs
+
+
+            Developed and operationalized new KPIs, creating a foundation for ongoing vendor performance management and continuous
+            improvement
+
+
+            Enabled tech transformation via formal governance, SOPs, and data  remediation routines', 'Identified 18% total
+            annual occupancy cost savings across leased assets
+
+
+            Outlined opportunity to reduce 14% of portfolio assets tied to near-term lease expirations
+
+
+            Established path to eliminate 25% excess seat capacity through densification, relocation, and exit strategies
+
+
+            Delivered business-aligned real estate strategy and modeling tool for repeatable scenario-based future decision
+            making', 'Increased Fill Rate from 50% to >90% by delivering tailored supply planning toolsets and processes
+
+
+            Mitigated Gross Margin variance of 16% with key distribution partner via improved controls
+
+
+            Established Demand Forecasting Accuracy measurement tool, emphasizing need for a more robust SIOP process
+
+
+            Developed Consolidated Corporate Scorecard to ensure tighter controls around data quality and governance']
+        description: Summary of measurable business outcomes and benefits realized from the engagement.
+      notes:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Additional remarks or contextual information related to the engagement.
+      case_study:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        notes: free-form flag/summary
+        description: Detailed narrative or documentation highlighting the engagement as a case study.
+      start_date:
+        type: date
+        semantic_type: date
+        preferred_filter: between
+        notes: expects YYYY-MM-DD
+        description: Date when the engagement officially began.
+      status:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: see allowed engagement statuses
+        sample_values: [Completed]
+        description: Current state or progress of the engagement (e.g., Completed).
+      end_date:
+        type: date
+        semantic_type: date
+        preferred_filter: between
+        notes: expects YYYY-MM-DD
+        description: Date when the engagement was completed or closed.
+      capex_baseline:
+        type: numeric
+        semantic_type: numeric
+        preferred_filter: between
+        notes: baseline capital expenditure (USD)
+        description: Baseline capital expenditure related to the engagement before project execution.
+      current_spend_baseline:
+        type: numeric
+        semantic_type: numeric
+        preferred_filter: between
+        notes: baseline current spend (USD)
+        description: Baseline operational or current spending level before the engagement.
+    description: This table captures detailed information about client engagements, including project scope, approach, outcomes,
+      and financial impacts to support business decision-making and performance tracking.
+  ClientList:
+    columns:
+      client_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each client firm.
+      client_firm_name:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        notes: normalize from clients_aliases
+        sample_values: [AIG, McGraw Hill Education, PartsSource, Maesa]
+        description: The official name of the client firm.
+      industry:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: use allowed list if available
+        sample_values: [Insurance, Consumer Packaged Goods, Healthcare, Education]
+        description: The primary industry sector in which the client operates.
+      field:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        sample_values: [Medical Supply Chain Management, Education Publishing & Technology, Beauty & Personal Care, Insurance
+            Products & Services]
+        description: The specific business area or specialization of the client firm.
+      geographic_presence:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: use allowed values where present
+        sample_values: [USA, International]
+        description: The regions where the client firm conducts its business.
+      ownership_type:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        sample_values: [Public, Private Equity Owned]
+        description: The classification of the client's ownership structure.
+      pe_firm_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> PERoster.pe_firm_id
+        description: Identifier linking the client to its private equity firm owner, if applicable.
+    description: This table maintains a list of client firms with key business attributes for project management and analysis.
+  ConsolidatedResourceRoster:
+    columns:
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each resource in the roster.
+      name:
+        type: text
+        semantic_type: person_name
+        preferred_filter: ilike
+        notes: case-insensitive
+        sample_values: [Jason Pereira, Pierre Buhler, Nick Kramer, Matthew Lee, Jim Kane, Max Schlossberg, Bhavin Shah, Mark
+            Ginsburg]
+        description: Full name of the resource.
+      resource_type:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        sample_values: [Consultant, IC]
+        description: Category describing the type of resource, such as Consultant or Individual Contributor.
+      education:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: ['Columbia University, M.S. in Applied Analytics
+
+
+            University of Michigan, Stephen M. Ross School of Business, B.B.A. with High Distinction.', 'Northeastern University,
+            B.S in Business Administration and Political Science with a concentration in Management', 'New York University
+            Stern School of Business, MBA in Strategy, Finance, and Economics; Northeastern University, B.A. in Finance',
+          'Penn State, B.S in Industrial Engineering', 'University of Pennsylvania, Executive Masters in Technology Management,
+            a B.S.E in Civil Engineering, B.A in Architecture', 'New York University, B.A in History', 'New York University
+            Stern School of Business, MBA; Pennsylvania State University, B.S. in Finance.', 'Bucknell University, Freeman
+            College of Management
+
+
+            B.S.B.A. in Accounting and Financial Management
+
+
+            University of Virginia and ESADE Business School (Spain)
+
+
+            Dual Master’s and Certificate in Global Commerce and Global Strategic Management']
+        description: Educational background and degrees attained by the resource.
+      qualifications:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Professional certifications, skills, or credentials held by the resource.
+      previous_work_experience:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Digital Product Engineering and Operating Model Leader at IBM Consulting, 'Experienced Associate,
+            Strategy& – Supported M&A strategy, developed financial models for corporate transactions, and optimized promotional
+            planning for Fortune 500 companies.
+
+
+            Product Marketing Intern, Steelcase, Inc. – Assessed growth opportunities across Asia as part of market strategy
+            efforts.', 'Mergers & Acquisitions Team Member, Textron', 'CIO & SVP, Business Transformation, Catalyst Health
+            Solutions – Led large-scale transformation programs, technology modernization, and organizational culture change.
+
+
+            VP, Operations and Technology, UnitedHealth Group – Managed technology and operations functions to align with
+            business needs.
+
+
+            COO, Service Delivery & SVP, Life Insurance Operations, AXA – Oversaw service delivery, offshore technology, call
+            center, and back-office teams, with operating budgets up to $92M and capital budgets up to $50M.', 'Markets Risk
+            and Control AVP, Barclays
+
+
+            Tax Withholding and Reporting Analyst, Barclays
+
+
+            Trade Settlement Specialist, Brown Brothers Harriman
+
+
+            Trust Operations Specialist, Choate, Hall & Stewart LLP', 'Supply Chain Quality Control Supervisor, PepsiCo',
+          'Co-founder & Advisor, Trace Agritech – An India-based startup using proprietary technology to produce organic food
+            more efficiently, with value capture through processing, marketing, and distribution.
+
+
+            SSA & Company – Three years working with clients at all levels to drive EBITDA improvements through multiple assessments
+            and implementations.', Chess]
+        description: Summary of the resource's past job roles and relevant professional experience.
+      role_rank:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: use allowed role_rank values
+        sample_values: [Director, Associate Consultant, Senior Director, Managing Director, Principal, Associate Director,
+          Business Analyst]
+        description: Seniority or level of the resource within the organizational hierarchy.
+      title_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> TitleMaster.title_id
+        description: Unique identifier linking to the resource's official job title.
+    description: This table consolidates detailed profiles of resources including their identities, roles, education, qualifications,
+      and work experience for workforce management and project staffing.
+  ConsultantRoster:
+    columns:
+      consultant_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each consultant in the roster.
+      name:
+        type: text
+        semantic_type: person_name
+        preferred_filter: ilike
+        notes: case-insensitive
+        sample_values: [Jason Pereira, Pierre Buhler, Nick Kramer, Jim Kane, Mathew Lee, Max Schlossberg, Bhavin Shah, Wayne
+            Dix]
+        description: Full name of the consultant.
+      title_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> TitleMaster.title_id
+        description: Identifier linking the consultant to their professional title or role.
+      email:
+        type: text
+        semantic_type: email
+        preferred_filter: '='
+        notes: exact or domain match
+        sample_values: [nkramer@ssaandco.com, mlee@ssaandco.com, jkane@ssaandco.com, wdix@ssaandco.com, pbuhler@ssaandco.com,
+          atalluri@ssaandco.com, bshah@ssaandco.com, fasbeck@ssaandco.com]
+        description: Consultant's business email address for communication.
+      phone_number:
+        type: text
+        semantic_type: phone
+        preferred_filter: '='
+        notes: format (999) 999-9999
+        sample_values: [(917) 355-9994]
+        description: Consultant's contact phone number.
+    description: Stores detailed information about consultants available for projects within the organization.
+  CourseCapability:
+    columns:
+      course_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> TrainingLearning.course_id
+        description: Identifies the specific course associated with a capability.
+      capability_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmCapabilities.capability_id
+        description: Identifies the specific capability or skill linked to a course.
+    description: This table links courses to their associated capabilities, defining which skills or competencies each course
+      covers.
+  CourseResource:
+    columns:
+      course_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> TrainingLearning.course_id
+        description: Identifies the specific course to which the resource belongs.
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Identifies the learning resource associated with the course.
+    description: This table links courses to their associated learning resources to manage course content.
+  CourseTool:
+    columns:
+      course_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> TrainingLearning.course_id
+        description: Identifies the specific course associated with a tool.
+      tool_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmTool.tool_id
+        description: Identifies the specific tool assigned to a course.
+    description: This table links courses to the tools they utilize, enabling management of course-tool associations.
+  EngagementCapability:
+    columns:
+      engagement_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientEngagement.engagement_id
+        description: Identifies the unique client engagement associated with the capability.
+      capability_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmCapabilities.capability_id
+        description: Identifies the specific capability applied within the engagement.
+    description: This table links client engagements to the specific capabilities utilized in each project.
+  EngagementContact:
+    columns:
+      engagement_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientEngagement.engagement_id
+        description: Unique identifier for the specific project engagement.
+      contact_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientContact.contact_id
+        description: Unique identifier for the contact involved in the engagement.
+    description: This table links projects with their associated contacts to track engagement relationships.
+  FirmCapabilities:
+    columns:
+      capability_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: A unique identifier for each firm capability.
+      capability_name:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: normalize from capabilities_aliases
+        sample_values: [Vendor Management, Inventory Management, Process Mining, Footprint Assessment, Control Tower, Data
+            Analysis, Spans & Layers, Target Operating Model]
+        description: The name of a specific capability or service provided by the firm.
+    description: This table catalogs the various capabilities and expertise areas offered by the firm.
+  FirmTool:
+    columns:
+      tool_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each software tool in the firm's inventory.
+      tool_name:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: normalize from tools_aliases
+        sample_values: [Disco, Power BI, PowerPoint, Excel]
+        description: The name of the software tool used within the firm.
+      vendor_name:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Microsoft, Fluxicon]
+        description: The company or provider supplying the software tool.
+      tool_type:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        sample_values: [Spreadsheet Software, Process Mining Software, Slide Building Software, Business Intelligence & Analytics
+            Platform]
+        description: The category or classification of the software tool based on its primary function.
+      licensing:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: The type or terms of the software license associated with the tool.
+      cost:
+        type: numeric
+        semantic_type: numeric
+        preferred_filter: between
+        description: The financial expense incurred by the firm to acquire or maintain the software tool.
+    description: This table catalogs the software tools used by the firm, including their details and associated costs.
+  ICRoster:
+    columns:
+      ic_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each independent contractor.
+      name:
+        type: text
+        semantic_type: person_name
+        preferred_filter: ilike
+        sample_values: [Mark Ginsburg]
+        description: Full name of the independent contractor.
+      rate_daily:
+        type: numeric
+        semantic_type: numeric
+        preferred_filter: between
+        notes: daily rate (USD)
+        description: Daily billing rate charged by the independent contractor.
+      email:
+        type: text
+        semantic_type: email
+        preferred_filter: '='
+        sample_values: [mginsburg@ssaandco.com]
+        description: Email address used to contact the independent contractor.
+      phone_number:
+        type: text
+        semantic_type: phone
+        preferred_filter: '='
+        notes: format (999) 999-9999
+        description: Phone number used to reach the independent contractor.
+    description: This table maintains a roster of independent contractors with their contact details and daily billing rates.
+  ICSSAContact:
+    columns:
+      ic_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: UUID; join to ICRoster.ic_id (do not match against emails)
+        description: Unique identifier for each contact record.
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: UUID; join to ConsolidatedResourceRoster.resource_id for SSA resource details
+        description: Identifier linking the contact to a specific resource or entity.
+    description: This table stores unique contact identifiers linked to specific resources within the project management system.
+  PERoster:
+    columns:
+      pe_firm_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each private equity firm.
+      pe_firm_name:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Platinum Equity, Bain Capital]
+        description: Name of the private equity firm.
+      fund_size:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Mid Cap, Large/Mega Cap]
+        description: Category representing the size of the firm's investment funds.
+    description: This table stores information about private equity firms including their unique identifiers, names, and fund
+      size categories.
+  ProjectReviewForm:
+    columns:
+      review_form_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each project review form.
+      name:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Max Schlossberg]
+        description: Name of the reviewer completing the project review form.
+      engagement_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientEngagement.engagement_id
+        description: Identifier linking the review form to a specific project engagement.
+      specific_expertise:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Healthcare, ITSM]
+        description: Areas of expertise relevant to the reviewer's assessment, such as industry or technical skills.
+    description: Stores information about individual project review forms completed by reviewers for specific engagements.
+  ProjectTeam:
+    columns:
+      team_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each project team assignment.
+      engagement_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ClientEngagement.engagement_id
+        description: Identifier linking the team member to a specific project engagement.
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Identifier for the individual team member assigned to the project.
+      project_role:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        sample_values: [Contributor, IC, Engagement Manager, Steering Manager]
+        description: The specific role or responsibility the team member holds within the project.
+      start_date:
+        type: date
+        semantic_type: date
+        preferred_filter: between
+        description: The date when the team member's involvement in the project begins.
+      end_date:
+        type: date
+        semantic_type: date
+        preferred_filter: between
+        description: The date when the team member's involvement in the project ends.
+    description: This table records the assignment of team members to projects, detailing their roles and participation periods.
+  ResourceCapability:
+    columns:
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Identifies the individual resource or employee.
+      capability_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmCapabilities.capability_id
+        description: Identifies the particular skill or capability associated with the resource.
+    description: This table records the specific capabilities assigned to each resource within the organization.
+  ResourceIC:
+    columns:
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Unique identifier for a resource involved in the project.
+      ic_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ICRoster.ic_id
+        description: Unique identifier for the internal code assigned to the resource.
+    description: This table links resources to their associated internal codes within the project management system.
+  ResourceTool:
+    columns:
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Identifies the individual resource or employee.
+      tool_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmTool.tool_id
+        description: Identifies the specific tool or software associated with the resource.
+      proficiency_level:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: e.g., Beginner/Intermediate/Advanced
+        sample_values: [advanced]
+        description: Indicates the resource's skill level with the tool, such as beginner or advanced.
+      last_validated:
+        type: date
+        semantic_type: date
+        preferred_filter: between
+        description: Records the date when the resource's proficiency was most recently confirmed.
+    description: This table tracks the proficiency levels of resources in various tools and the dates when these proficiencies
+      were last validated.
+  ReviewFormCapability:
+    columns:
+      review_form_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ProjectReviewForm.review_form_id
+        description: Identifies the specific review form used for evaluation.
+      capability_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmCapabilities.capability_id
+        description: Identifies the capability being assessed within the review form.
+    description: This table links review forms to their associated capabilities to track which capabilities are evaluated
+      by each form.
+  ReviewFormResource:
+    columns:
+      review_form_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ProjectReviewForm.review_form_id
+        description: Identifies the specific review form used in the evaluation process.
+      resource_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> ConsolidatedResourceRoster.resource_id
+        description: Identifies the resource linked to the review form for assessment purposes.
+    description: This table links review forms to the resources associated with them for project evaluations.
+  TitleMaster:
+    columns:
+      title_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: A unique identifier for each job title in the organization.
+      title:
+        type: text
+        semantic_type: categorical
+        preferred_filter: ilike
+        notes: e.g., 'Managing Director', 'Associate Director'
+        sample_values: [Director, Associate Consultant, Senior Director, Managing Director, Principal, Associate Director,
+          Business Analyst]
+        description: The name of the job title representing an employee's role or position.
+    description: This table stores the official job titles used within the organization to classify employee roles and positions.
+  ToolCapability:
+    columns:
+      tool_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmTool.tool_id
+        description: Identifies the unique tool associated with a capability.
+      capability_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: FK -> FirmCapabilities.capability_id
+        description: Identifies the unique capability assigned to a tool.
+    description: This table links tools to their specific capabilities within the project management system.
+  TrainingLearning:
+    columns:
+      course_id:
+        type: uuid
+        semantic_type: id
+        preferred_filter: '='
+        notes: primary key
+        description: Unique identifier for each training course.
+      course_name:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        sample_values: [Excel Fundamentals, PowerBI Fundamentals]
+        description: Name of the training course offered.
+      link_to_course:
+        type: text
+        semantic_type: url
+        preferred_filter: '='
+        notes: exact match
+        sample_values: ['https://app.datacamp.com/learn/skill-tracks/excel-fundamentals', 'https://app.datacamp.com/learn/skill-tracks/power-bi-fundamentals']
+        description: Web address where the training course can be accessed.
+      pre_requisites:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Required knowledge or courses needed before taking this course.
+      learning_path:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Recommended sequence or grouping of courses for skill development.
+      success_criteria:
+        type: text
+        semantic_type: text
+        preferred_filter: ilike
+        description: Standards or goals that define successful completion of the course.
+    description: This table catalogs training courses available for employee learning and development.
