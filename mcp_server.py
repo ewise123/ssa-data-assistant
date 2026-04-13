@@ -2,8 +2,9 @@
 MCP Server for SSA Data Assistant.
 
 Exposes the SSA database schema, golden queries, and read-only query
-execution as MCP tools — letting Claude generate SQL natively without
-routing through OpenAI for SQL generation.
+execution as MCP tools — letting Claude generate SQL natively. Zero
+OpenAI dependency; uses ChromaDB's built-in local embeddings
+(all-MiniLM-L6-v2 via onnxruntime) for vector search.
 
 Usage (stdio, for Claude Desktop / Claude Code):
     python mcp_server.py
@@ -19,19 +20,15 @@ Claude Code config (~/.claude/settings.json):
           "args": ["<path-to>/mcp_server.py"],
           "env": {
             "PG_DSN_READONLY": "...",
-            "PG_SEARCH_PATH": "Project_Master_Database",
-            "OPENAI_API_KEY": "..."
+            "PG_SEARCH_PATH": "Project_Master_Database"
           }
         }
       }
     }
-
-Note: OPENAI_API_KEY is used only for text-embedding-3-small (schema/query
-retrieval), NOT for SQL generation. If omitted, the server falls back to
-keyword-only schema routing with reduced accuracy.
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import os
@@ -48,6 +45,9 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent
 load_dotenv(ROOT / ".env")
 
+import chromadb
+import yaml
+
 from app.catalog import (
     Catalog,
     CatalogLoadError,
@@ -63,12 +63,6 @@ from app.config_loader import (
 )
 from app.db import run_select
 from app.query_metrics import fetch_verified_queries
-from app.rag import (
-    DocumentationStore,
-    GoldenQueryStore,
-    SchemaRetriever,
-    index_config_as_documentation,
-)
 from app.schema_enrichment import load_schema_descriptions
 from app.sql_validator import SQLValidationError, build_sqlglot_schema, validate_sql
 
@@ -83,8 +77,158 @@ def _log(msg: str) -> None:
     print(msg, file=sys.stderr)
 
 
+def _stable_id(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
 # ---------------------------------------------------------------------------
-# Initialize catalog, config, and RAG stores
+# Local-embedding retrieval (ChromaDB default: all-MiniLM-L6-v2)
+# Separate data dir from the FastAPI app's OpenAI-indexed collections.
+# ---------------------------------------------------------------------------
+
+_MCP_DATA_DIR = Path("data/chromadb_mcp")
+
+
+def _get_chroma() -> chromadb.ClientAPI:
+    _MCP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return chromadb.PersistentClient(path=str(_MCP_DATA_DIR))
+
+
+_CHROMA = _get_chroma()
+
+
+def _index_schema(descriptions: dict[str, Any]) -> chromadb.Collection:
+    """Index table/column descriptions using local embeddings."""
+    col = _CHROMA.get_or_create_collection("schema", metadata={"hnsw:space": "cosine"})
+    if col.count() > 0:
+        return col
+
+    schema_name = descriptions.get("schema", "")
+    tables = descriptions.get("tables", {})
+    documents, metadatas, ids = [], [], []
+
+    for table_name, tdata in tables.items():
+        table_desc = tdata.get("description", "")
+        col_names = list(tdata.get("columns", {}).keys())
+        rels = tdata.get("relationships", [])
+
+        text = f"Table: {table_name}. {table_desc} Columns: {', '.join(col_names)}."
+        if rels:
+            text += f" Relationships: {'; '.join(rels)}."
+        documents.append(text)
+        metadatas.append({"type": "table", "table": table_name})
+        ids.append(_stable_id(f"table:{schema_name}.{table_name}"))
+
+        for cname, cinfo in tdata.get("columns", {}).items():
+            cdesc = cinfo.get("description", "")
+            ctype = cinfo.get("type", "")
+            samples = cinfo.get("sample_values", [])
+            text = f"Column: {table_name}.{cname} ({ctype}). {cdesc}"
+            if samples:
+                text += f" Example values: {', '.join(str(v) for v in samples[:5])}."
+            documents.append(text)
+            metadatas.append({"type": "column", "table": table_name, "column": cname})
+            ids.append(_stable_id(f"col:{schema_name}.{table_name}.{cname}"))
+
+    if documents:
+        col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    return col
+
+
+def _index_golden_queries(verified: list[dict[str, Any]]) -> chromadb.Collection:
+    """Index verified golden queries using local embeddings."""
+    col = _CHROMA.get_or_create_collection("golden_queries", metadata={"hnsw:space": "cosine"})
+    if col.count() > 0:
+        return col
+
+    documents, metadatas, ids = [], [], []
+    seen_ids: set[str] = set()
+    for vq in verified:
+        q = vq.get("question", "")
+        sql = vq.get("generated_sql", "")
+        if not q or not sql:
+            continue
+        doc_id = _stable_id(f"golden:{q}")
+        if doc_id in seen_ids:
+            continue
+        seen_ids.add(doc_id)
+        documents.append(q)
+        metadatas.append({"sql": sql})
+        ids.append(doc_id)
+
+    if documents:
+        col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    return col
+
+
+def _index_documentation(config: dict[str, Any]) -> chromadb.Collection:
+    """Index business rules / join hints from config using local embeddings."""
+    col = _CHROMA.get_or_create_collection("documentation", metadata={"hnsw:space": "cosine"})
+    if col.count() > 0:
+        return col
+
+    documents, metadatas, ids = [], [], []
+
+    # Join map intents
+    for path in config.get("join_map", {}).get("paths", []):
+        intent = path.get("intent", "")
+        desc = path.get("description", "")
+        tables = path.get("tables", [])
+        joins = path.get("joins", [])
+        lines = [f"Query pattern: {intent}. {desc}"]
+        lines.append(f"Tables: {', '.join(tables)}.")
+        if joins:
+            lines.append(f"Joins: {'; '.join(f'{j[0]} = {j[1]}' for j in joins)}.")
+        text = " ".join(lines)
+        documents.append(text)
+        metadatas.append({"source": f"join_map:{intent}"})
+        ids.append(_stable_id(f"doc:join:{intent}"))
+
+    # Disambiguation rules
+    for rule in config.get("disambiguation", {}).get("rules", []):
+        keywords = rule.get("if_contains", [])
+        dataset = rule.get("dataset", "")
+        prefer = rule.get("prefer_tables", [])
+        text = (
+            f"When the question mentions {', '.join(repr(k) for k in keywords)}, "
+            f"this is about {dataset}. Use tables: {', '.join(prefer)}."
+        )
+        documents.append(text)
+        metadatas.append({"source": f"disambiguation:{dataset}"})
+        ids.append(_stable_id(f"doc:disambig:{dataset}:{keywords[0] if keywords else ''}"))
+
+    # Column semantics by table
+    for table_name, columns in config.get("semantics", {}).items():
+        parts = []
+        for cname, meta in columns.items():
+            p = [f"{table_name}.{cname}"]
+            if meta.get("semantic_type"):
+                p.append(f"type={meta['semantic_type']}")
+            if meta.get("preferred_filter"):
+                p.append(f"filter: {meta['preferred_filter']}")
+            parts.append(", ".join(p))
+        text = f"Column details for {table_name}: " + "; ".join(parts) + "."
+        documents.append(text)
+        metadatas.append({"source": f"semantics:{table_name}"})
+        ids.append(_stable_id(f"doc:sem:{table_name}"))
+
+    # Aliases
+    for category, mapping in config.get("aliases", {}).items():
+        strs = []
+        for canonical, alias_list in list(mapping.items())[:20]:
+            strs.append(f"{canonical} (a.k.a. {', '.join(alias_list)})")
+        text = f"Aliases for {category}: {'; '.join(strs)}."
+        documents.append(text)
+        metadatas.append({"source": f"aliases:{category}"})
+        ids.append(_stable_id(f"doc:alias:{category}"))
+
+    if documents:
+        col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+    return col
+
+
+# ---------------------------------------------------------------------------
+# Initialize everything
 # ---------------------------------------------------------------------------
 
 SCHEMA = os.getenv("PG_SEARCH_PATH", "Project_Master_Database")
@@ -100,7 +244,7 @@ except (CatalogLoadError, Exception) as exc:
     CATALOG = None
     SQLGLOT_SCHEMA = None
 
-# 2. Config files (aliases, join map, semantics, allowed values, disambiguation)
+# 2. Config
 try:
     CONFIG: dict[str, Any] = {
         "aliases": load_aliases(),
@@ -112,58 +256,40 @@ try:
     _log("[mcp] Config loaded")
 except Exception as exc:
     _log(f"[mcp] WARNING: Config load failed: {exc}")
-    CONFIG = {
-        "aliases": {},
-        "join_map": {"paths": []},
-        "semantics": {},
-        "allowed": {},
-        "disambiguation": {"rules": []},
-    }
+    CONFIG = {"aliases": {}, "join_map": {"paths": []}, "semantics": {}, "allowed": {}, "disambiguation": {"rules": []}}
 
-# 3. Schema descriptions (M-Schema YAML)
+# 3. Schema descriptions
 SCHEMA_DESCRIPTIONS = load_schema_descriptions()
 if SCHEMA_DESCRIPTIONS:
     _log(f"[mcp] Schema descriptions: {len(SCHEMA_DESCRIPTIONS.get('tables', {}))} tables")
 
-# 4. RAG: embedding-based schema retriever
-try:
-    SCHEMA_RETRIEVER: SchemaRetriever | None = SchemaRetriever()
-    if SCHEMA_RETRIEVER.count == 0:
-        desc_path = Path("app/config/schema_descriptions.yaml")
-        if desc_path.exists():
-            n = SCHEMA_RETRIEVER.index_from_yaml(desc_path)
-            _log(f"[mcp] Indexed {n} schema docs into ChromaDB")
-    else:
-        _log(f"[mcp] Schema retriever: {SCHEMA_RETRIEVER.count} docs")
-except Exception as exc:
-    _log(f"[mcp] WARNING: Schema retriever unavailable: {exc}")
-    SCHEMA_RETRIEVER = None
+# 4. Local-embedding vector stores (ChromaDB default: all-MiniLM-L6-v2)
+SCHEMA_COL: chromadb.Collection | None = None
+GOLDEN_COL: chromadb.Collection | None = None
+DOC_COL: chromadb.Collection | None = None
 
-# 5. RAG: golden query store (verified question→SQL pairs)
+if SCHEMA_DESCRIPTIONS:
+    try:
+        SCHEMA_COL = _index_schema(SCHEMA_DESCRIPTIONS)
+        _log(f"[mcp] Schema index: {SCHEMA_COL.count()} docs (local embeddings)")
+    except Exception as exc:
+        _log(f"[mcp] WARNING: Schema index failed: {exc}")
+
 try:
-    GOLDEN_STORE: GoldenQueryStore | None = GoldenQueryStore()
     verified = fetch_verified_queries()
-    for vq in verified:
-        if vq.get("generated_sql"):
-            GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
-    _log(f"[mcp] Golden queries: {GOLDEN_STORE.count} examples")
+    if verified:
+        GOLDEN_COL = _index_golden_queries(verified)
+        _log(f"[mcp] Golden queries: {GOLDEN_COL.count()} examples (local embeddings)")
 except Exception as exc:
-    _log(f"[mcp] WARNING: Golden query store unavailable: {exc}")
-    GOLDEN_STORE = None
+    _log(f"[mcp] WARNING: Golden query index failed: {exc}")
 
-# 6. RAG: documentation store (business rules, join hints)
 try:
-    DOC_STORE: DocumentationStore | None = DocumentationStore()
-    if DOC_STORE.count == 0:
-        n = index_config_as_documentation(DOC_STORE, CONFIG)
-        _log(f"[mcp] Indexed {n} documentation chunks")
-    else:
-        _log(f"[mcp] Documentation store: {DOC_STORE.count} chunks")
+    DOC_COL = _index_documentation(CONFIG)
+    _log(f"[mcp] Documentation: {DOC_COL.count()} chunks (local embeddings)")
 except Exception as exc:
-    _log(f"[mcp] WARNING: Documentation store unavailable: {exc}")
-    DOC_STORE = None
+    _log(f"[mcp] WARNING: Documentation index failed: {exc}")
 
-_log("[mcp] Ready")
+_log("[mcp] Ready — fully local, no external API dependencies")
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +328,7 @@ mcp = FastMCP("SSA Data Assistant", instructions=_INSTRUCTIONS)
 
 
 # ---------------------------------------------------------------------------
-# JSON serialization (handles Decimal, date, bytes from PostgreSQL)
+# JSON serialization
 # ---------------------------------------------------------------------------
 
 def _json_default(obj: Any) -> Any:
@@ -233,14 +359,22 @@ def get_schema(question: str) -> str:
     if CATALOG is None:
         return "ERROR: Database catalog not loaded. Check server logs."
 
-    # Vector similarity scores from embedding retriever
+    # Vector scores from local-embedding retriever
     vector_scores: dict[str, float] | None = None
-    if SCHEMA_RETRIEVER is not None:
+    if SCHEMA_COL is not None:
         try:
-            retrieval = SCHEMA_RETRIEVER.retrieve_tables(question)
-            vector_scores = {t.name: t.vector_score for t in retrieval.tables}
+            results = SCHEMA_COL.query(
+                query_texts=[question],
+                where={"type": "table"},
+                n_results=min(5, SCHEMA_COL.count()),
+                include=["metadatas", "distances"],
+            )
+            if results and results["metadatas"]:
+                vector_scores = {}
+                for meta, dist in zip(results["metadatas"][0], results["distances"][0]):
+                    vector_scores[meta["table"]] = 1.0 - dist  # cosine distance → similarity
         except Exception as exc:
-            _log(f"[mcp] Schema retriever error (falling back to keywords): {exc}")
+            _log(f"[mcp] Schema vector search error: {exc}")
 
     # Hybrid schema routing (redirect stdout — it prints router debug info)
     with redirect_stdout(io.StringIO()):
@@ -254,14 +388,19 @@ def get_schema(question: str) -> str:
 
     parts = [hint.snippet]
 
-    # Append relevant documentation (business rules, join hints)
-    if DOC_STORE is not None:
+    # Append relevant documentation chunks
+    if DOC_COL is not None:
         try:
-            docs = DOC_STORE.retrieve(question, k=3)
-            if docs:
+            docs = DOC_COL.query(
+                query_texts=[question],
+                n_results=min(3, DOC_COL.count()),
+                include=["documents", "distances"],
+            )
+            if docs and docs["documents"] and docs["documents"][0]:
                 parts.append("\nRelevant business rules / documentation:")
-                for doc in docs:
-                    parts.append(f"  - {doc.text}")
+                for doc_text, dist in zip(docs["documents"][0], docs["distances"][0]):
+                    if (1.0 - dist) > 0.2:  # only include if reasonably relevant
+                        parts.append(f"  - {doc_text}")
         except Exception as exc:
             _log(f"[mcp] Doc retrieval error: {exc}")
 
@@ -279,27 +418,41 @@ def get_golden_examples(question: str, k: int = 3) -> str:
         question: The natural language question to match against.
         k: Number of examples to return (1-5, default 3).
     """
-    if GOLDEN_STORE is None or GOLDEN_STORE.count == 0:
+    if GOLDEN_COL is None or GOLDEN_COL.count() == 0:
         return "No golden queries available."
 
     k = min(max(k, 1), 5)
 
     try:
-        examples = GOLDEN_STORE.retrieve(question, k=k)
+        results = GOLDEN_COL.query(
+            query_texts=[question],
+            n_results=min(k, GOLDEN_COL.count()),
+            include=["documents", "metadatas", "distances"],
+        )
     except Exception as exc:
         return f"ERROR retrieving golden queries: {exc}"
 
-    if not examples:
-        return "No similar golden queries found (similarity below threshold)."
+    if not results or not results["documents"] or not results["documents"][0]:
+        return "No similar golden queries found."
 
-    lines = [f"Found {len(examples)} similar verified queries:\n"]
-    for i, ex in enumerate(examples, 1):
-        lines.append(f"Example {i} (similarity: {ex.similarity:.2f}):")
-        lines.append(f"  Q: {ex.question}")
-        lines.append(f"  SQL: {ex.sql}")
+    lines = []
+    count = 0
+    for doc, meta, dist in zip(
+        results["documents"][0], results["metadatas"][0], results["distances"][0]
+    ):
+        similarity = 1.0 - dist
+        if similarity < 0.3:
+            continue
+        count += 1
+        lines.append(f"Example {count} (similarity: {similarity:.2f}):")
+        lines.append(f"  Q: {doc}")
+        lines.append(f"  SQL: {meta.get('sql', '')}")
         lines.append("")
 
-    return "\n".join(lines)
+    if not lines:
+        return "No similar golden queries found (similarity below threshold)."
+
+    return f"Found {count} similar verified queries:\n\n" + "\n".join(lines)
 
 
 @mcp.tool()
@@ -312,14 +465,12 @@ def execute_query(sql: str) -> str:
     Args:
         sql: A SELECT query to validate and execute.
     """
-    # Validate through the full pipeline
     try:
         validated_sql = validate_sql(sql, catalog_schema=SQLGLOT_SCHEMA)
     except (SQLValidationError, ValueError) as exc:
         layer = getattr(exc, "layer", "unknown")
         return f"VALIDATION ERROR (layer: {layer}): {exc}"
 
-    # Execute against PostgreSQL
     try:
         columns, rows = run_select(validated_sql)
     except Exception as exc:
@@ -333,11 +484,7 @@ def execute_query(sql: str) -> str:
             f"use ILIKE for text matching, or relax filters."
         )
 
-    result = {
-        "row_count": len(rows),
-        "columns": columns,
-        "rows": rows,
-    }
+    result = {"row_count": len(rows), "columns": columns, "rows": rows}
     return json.dumps(result, default=_json_default, indent=2)
 
 
@@ -376,11 +523,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="SSA Data Assistant MCP Server")
-    parser.add_argument(
-        "--transport",
-        choices=["stdio", "streamable-http"],
-        default="stdio",
-    )
+    parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--port", type=int, default=8001)
     args = parser.parse_args()
 

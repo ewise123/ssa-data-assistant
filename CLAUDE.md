@@ -135,15 +135,14 @@ Add to `~/.claude/settings.json`:
       "args": ["/absolute/path/to/mcp_server.py"],
       "env": {
         "PG_DSN_READONLY": "...",
-        "PG_SEARCH_PATH": "Project_Master_Database",
-        "OPENAI_API_KEY": "..."
+        "PG_SEARCH_PATH": "Project_Master_Database"
       }
     }
   }
 }
 ```
 
-Note: `OPENAI_API_KEY` is used only for embeddings (`text-embedding-3-small`), not SQL generation. If omitted, the server falls back to keyword-only schema routing.
+The MCP server uses local embeddings (ChromaDB's built-in `all-MiniLM-L6-v2` via onnxruntime) — no OpenAI key or external API calls required. Vector data is stored separately in `data/chromadb_mcp/`.
 
 ## Coding Conventions
 
