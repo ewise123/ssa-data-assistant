@@ -92,6 +92,7 @@ from .sql_validator import validate_sql, build_sqlglot_schema
 from .query_metrics import (
     record_query, fetch_top_queries, fetch_problem_queries,
     fetch_verifiable_queries, verify_query, fetch_verified_queries,
+    record_feedback,
 )
 from .rag import SchemaRetriever, GoldenQueryStore, DocumentationStore, index_config_as_documentation
 from .schema_enrichment import load_schema_descriptions
@@ -396,6 +397,7 @@ class AskMetadata(BaseModel):
     dataset: Optional[str]
     status: str
     row_count: int
+    query_id: Optional[int] = None
     error: Optional[str] = None
     timestamp: datetime
 
@@ -549,11 +551,23 @@ def ask(req: AskRequest):
         if response_status == "ok" and row_count == 0:
             response_status = "empty"
         final_status_for_log = response_status
+
+        # Record query and capture ID for feedback
+        query_id = record_query(
+            question=req.question,
+            dataset=req.dataset,
+            status=response_status,
+            row_count=row_count,
+            error_message=error_message if response_status == "error" else None,
+            generated_sql=safe_sql,
+        )
+
         metadata = AskMetadata(
             question=req.question,
             dataset=req.dataset,
             status=response_status,
             row_count=row_count,
+            query_id=query_id,
             error=error_message if response_status == "error" else None,
             timestamp=datetime.now(timezone.utc),
         )
@@ -564,20 +578,15 @@ def ask(req: AskRequest):
         status = "error"
         if error_message is None:
             error_message = str(exc)
-        raise
-    finally:
-        effective_row_count = row_count if row_count is not None else len(rows)
-        final_status = final_status_for_log or status
-        if final_status == "ok" and effective_row_count == 0:
-            final_status = "empty"
         record_query(
             question=req.question,
             dataset=req.dataset,
-            status=final_status,
-            row_count=effective_row_count,
+            status="error",
+            row_count=0,
             error_message=error_message,
             generated_sql=safe_sql,
         )
+        raise
 
 
 @app.get("/debug/db", include_in_schema=False)
@@ -754,3 +763,31 @@ def admin_verify_query(req: VerifyRequest):
                 break
 
     return {"ok": True, "query_id": req.query_id, "verified": req.verified}
+
+
+class FeedbackRequest(BaseModel):
+    query_id: int
+    feedback: str  # "positive" or "negative"
+    corrected_sql: Optional[str] = None
+
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest):
+    """Record user feedback on a query result. Positive feedback auto-verifies as golden."""
+    if req.feedback not in ("positive", "negative"):
+        raise HTTPException(status_code=400, detail="feedback must be 'positive' or 'negative'")
+
+    found = record_feedback(req.query_id, req.feedback, req.corrected_sql)
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
+
+    # Positive feedback → sync to golden query store
+    if req.feedback == "positive" and GOLDEN_STORE:
+        verified = fetch_verified_queries()
+        for vq in verified:
+            if vq["id"] == req.query_id and vq["generated_sql"]:
+                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
+                print(f"[feedback] Added golden query from positive feedback (id={req.query_id})")
+                break
+
+    return {"ok": True, "query_id": req.query_id, "feedback": req.feedback}

@@ -176,6 +176,32 @@ def fetch_problem_queries(limit: int = 50) -> List[ProblemQueryRow]:
         ]
 
 
+def record_feedback(
+    query_id: int,
+    feedback: str,
+    corrected_sql: Optional[str] = None,
+) -> bool:
+    """Record user feedback on a query. Returns True if the query was found."""
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE query_log SET feedback = ? WHERE id = ?",
+            (feedback, query_id),
+        )
+        # If user provided corrected SQL, store it and auto-verify
+        if corrected_sql and feedback == "positive":
+            conn.execute(
+                "UPDATE query_log SET generated_sql = ?, verified = 1 WHERE id = ?",
+                (corrected_sql, query_id),
+            )
+        elif feedback == "positive":
+            conn.execute(
+                "UPDATE query_log SET verified = 1 WHERE id = ?",
+                (query_id,),
+            )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 class VerifiableQueryRow(TypedDict):
     id: int
     question: str
