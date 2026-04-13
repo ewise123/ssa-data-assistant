@@ -89,8 +89,11 @@ from .config_loader import (
 )
 from .db import describe_dsn, run_select
 from .sql_validator import validate_sql, build_sqlglot_schema
-from .query_metrics import record_query, fetch_top_queries, fetch_problem_queries
-from .rag import SchemaRetriever
+from .query_metrics import (
+    record_query, fetch_top_queries, fetch_problem_queries,
+    fetch_verifiable_queries, verify_query, fetch_verified_queries,
+)
+from .rag import SchemaRetriever, GoldenQueryStore
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -110,6 +113,7 @@ CONFIG: Dict[str, Any] = {
 }
 SCHEMA_RETRIEVER: Optional[SchemaRetriever] = None
 SQLGLOT_SCHEMA: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None
+GOLDEN_STORE: Optional[GoldenQueryStore] = None
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -134,7 +138,7 @@ def index() -> FileResponse:
 
 # --- Load catalog + config helpers ---
 def _load_catalog_and_config() -> Dict[str, Any]:
-    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA
+    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA, GOLDEN_STORE
     result: Dict[str, Any] = {"catalog": {}, "config": {}}
 
     try:
@@ -217,6 +221,23 @@ def _load_catalog_and_config() -> Dict[str, Any]:
     except Exception as exc:
         print(f"[rag] Failed to initialize schema retriever: {exc}")
         SCHEMA_RETRIEVER = None
+
+    # Initialize golden query store
+    try:
+        GOLDEN_STORE = GoldenQueryStore()
+        # Sync any verified queries from SQLite into ChromaDB
+        verified = fetch_verified_queries()
+        synced = 0
+        for vq in verified:
+            if vq["generated_sql"]:
+                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
+                synced += 1
+        if synced:
+            print(f"[rag] Synced {synced} verified golden queries to ChromaDB")
+        print(f"[rag] Golden query store loaded ({GOLDEN_STORE.count} examples)")
+    except Exception as exc:
+        print(f"[rag] Failed to initialize golden query store: {exc}")
+        GOLDEN_STORE = None
 
     return result
 
@@ -411,6 +432,20 @@ def ask(req: AskRequest):
         cols, rows = run_select(validated_sql)
         return validated_sql, cols, rows
 
+    # Retrieve golden examples for dynamic few-shot
+    golden_examples: Optional[List[Dict[str, Any]]] = None
+    if GOLDEN_STORE and GOLDEN_STORE.count > 0:
+        try:
+            golden_hits = GOLDEN_STORE.retrieve(req.question, k=3)
+            if golden_hits:
+                golden_examples = [
+                    {"user": g.question, "assistant": g.sql}
+                    for g in golden_hits
+                ]
+                print(f"[rag] Retrieved {len(golden_examples)} golden examples (best similarity: {golden_hits[0].similarity:.3f})")
+        except Exception as golden_exc:
+            print(f"[rag] Golden query retrieval failed: {golden_exc}")
+
     try:
         try:
             # 1. Generate SQL
@@ -421,6 +456,7 @@ def ask(req: AskRequest):
                 config=CONFIG,
                 schema_hint=schema_hint,
                 disambiguation=disambiguation,
+                golden_examples=golden_examples,
             )
             safe_sql = validate_sql(raw_sql)
         except Exception as exc:
@@ -494,6 +530,7 @@ def ask(req: AskRequest):
             status=final_status,
             row_count=effective_row_count,
             error_message=error_message,
+            generated_sql=safe_sql,
         )
 
 
@@ -634,3 +671,40 @@ def admin_problem_queries(limit: int = 50):
     </html>
     """
     return HTMLResponse(content=html_doc)
+
+
+# --- Golden query admin endpoints ---
+
+class VerifyRequest(BaseModel):
+    query_id: int
+    verified: bool = True
+
+
+@app.get("/admin/golden-queries", include_in_schema=False)
+def admin_golden_queries():
+    """List all verified golden queries."""
+    return fetch_verified_queries()
+
+
+@app.get("/admin/verifiable-queries", include_in_schema=False)
+def admin_verifiable_queries(limit: int = 50):
+    """List recent successful queries available for verification."""
+    return fetch_verifiable_queries(limit=max(1, min(limit, 200)))
+
+
+@app.post("/admin/verify-query", include_in_schema=False)
+def admin_verify_query(req: VerifyRequest):
+    """Mark a query as verified (golden) or unverified."""
+    found = verify_query(req.query_id, req.verified)
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
+
+    # Sync to golden query ChromaDB store
+    if req.verified and GOLDEN_STORE:
+        verified_queries = fetch_verified_queries()
+        for vq in verified_queries:
+            if vq["id"] == req.query_id and vq["generated_sql"]:
+                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
+                break
+
+    return {"ok": True, "query_id": req.query_id, "verified": req.verified}

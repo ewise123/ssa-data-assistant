@@ -134,6 +134,7 @@ def _build_messages(
     disambiguation: Optional[Dict[str, Any]],
     schema_hint: Optional[SchemaHint],
     repair_context: Optional[str] = None,
+    golden_examples: Optional[List[Dict[str, str]]] = None,
 ) -> Tuple[
     List[Union[
         ChatCompletionSystemMessageParam,
@@ -210,9 +211,20 @@ def _build_messages(
             )
         )
 
-    for ex in _FEWSHOTS:
-        messages.append(ChatCompletionUserMessageParam(role="user", content=ex["user"]))
-        messages.append(ChatCompletionAssistantMessageParam(role="assistant", content=ex["assistant"]))
+    # Dynamic golden examples take priority; fall back to static few-shots
+    if golden_examples:
+        for ex in golden_examples:
+            messages.append(ChatCompletionUserMessageParam(role="user", content=ex["user"]))
+            messages.append(ChatCompletionAssistantMessageParam(role="assistant", content=ex["assistant"]))
+        # Include a few static examples for coverage if golden set is small
+        if len(golden_examples) < 3:
+            for ex in _FEWSHOTS[:3]:
+                messages.append(ChatCompletionUserMessageParam(role="user", content=ex["user"]))
+                messages.append(ChatCompletionAssistantMessageParam(role="assistant", content=ex["assistant"]))
+    else:
+        for ex in _FEWSHOTS:
+            messages.append(ChatCompletionUserMessageParam(role="user", content=ex["user"]))
+            messages.append(ChatCompletionAssistantMessageParam(role="assistant", content=ex["assistant"]))
 
     messages.append(ChatCompletionUserMessageParam(role="user", content=question))
     return messages, hint
@@ -225,6 +237,7 @@ def propose_sql(
     config: Optional[Dict[str, Any]] = None,
     schema_hint: Optional[SchemaHint] = None,
     disambiguation: Optional[Dict[str, Any]] = None,
+    golden_examples: Optional[List[Dict[str, str]]] = None,
 ) -> Tuple[str, Optional[SchemaHint]]:
     """
     Generate SQL for the user's natural-language question.
@@ -240,6 +253,7 @@ def propose_sql(
         config,
         disambiguation,
         schema_hint,
+        golden_examples=golden_examples,
     )
 
     try:
