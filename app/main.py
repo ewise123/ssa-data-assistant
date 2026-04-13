@@ -94,6 +94,7 @@ from .query_metrics import (
     fetch_verifiable_queries, verify_query, fetch_verified_queries,
 )
 from .rag import SchemaRetriever, GoldenQueryStore, DocumentationStore, index_config_as_documentation
+from .schema_enrichment import load_schema_descriptions
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -115,6 +116,7 @@ SCHEMA_RETRIEVER: Optional[SchemaRetriever] = None
 SQLGLOT_SCHEMA: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None
 GOLDEN_STORE: Optional[GoldenQueryStore] = None
 DOC_STORE: Optional[DocumentationStore] = None
+SCHEMA_DESCRIPTIONS: Optional[Dict[str, Any]] = None
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -139,7 +141,7 @@ def index() -> FileResponse:
 
 # --- Load catalog + config helpers ---
 def _load_catalog_and_config() -> Dict[str, Any]:
-    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA, GOLDEN_STORE, DOC_STORE
+    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA, GOLDEN_STORE, DOC_STORE, SCHEMA_DESCRIPTIONS
     result: Dict[str, Any] = {"catalog": {}, "config": {}}
 
     try:
@@ -204,6 +206,14 @@ def _load_catalog_and_config() -> Dict[str, Any]:
             "disambiguation_rules": len(disambig.get("rules", [])),
             "error": None,
         }
+
+    # Load schema descriptions for M-Schema prompt enrichment
+    SCHEMA_DESCRIPTIONS = load_schema_descriptions()
+    if SCHEMA_DESCRIPTIONS:
+        desc_tables = SCHEMA_DESCRIPTIONS.get("tables", {})
+        print(f"[schema] Loaded M-Schema descriptions for {len(desc_tables)} tables")
+    else:
+        print("[schema] No schema_descriptions.yaml found; using bare column names in prompts")
 
     # Initialize embedding-based schema retriever (if schema descriptions exist)
     try:
@@ -348,6 +358,7 @@ def debug_router(q: str):
         config=CONFIG,
         disambiguation_rules=CONFIG.get("disambiguation"),
         vector_scores=vector_scores,
+        schema_descriptions=SCHEMA_DESCRIPTIONS,
     )
     return {
         "snippet": hint.snippet,
@@ -426,6 +437,7 @@ def ask(req: AskRequest):
             config=CONFIG,
             disambiguation_rules=disambiguation,
             vector_scores=vector_scores,
+            schema_descriptions=SCHEMA_DESCRIPTIONS,
         )
 
     def _repair(reason: str, last_sql: str) -> Tuple[str, List[str], List[Dict[str, Any]]]:

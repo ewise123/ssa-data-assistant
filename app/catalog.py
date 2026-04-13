@@ -224,6 +224,7 @@ def suggest_schema_snippet(
     extra_synonyms: Optional[Dict[str, List[str]]] = None,
     disambiguation_rules: Optional[Dict[str, Any]] = None,
     vector_scores: Optional[Dict[str, float]] = None,
+    schema_descriptions: Optional[Dict[str, Any]] = None,
 ) -> SchemaHint:
     q = question.lower()
     synonyms = _merge_synonyms(
@@ -310,6 +311,9 @@ def suggest_schema_snippet(
     semantics = (config or {}).get("semantics", {})
     allowed_values = (config or {}).get("allowed", {})
 
+    # Extract enriched descriptions from schema_descriptions.yaml if available
+    desc_tables = (schema_descriptions or {}).get("tables", {})
+
     lines: List[str] = ['Tables (schema-qualified):']
     table_matched_columns: Dict[str, List[str]] = {}
     for table_name in top:
@@ -320,8 +324,38 @@ def suggest_schema_snippet(
         if not matched_cols:
             matched_cols = [column.name for column in table.columns[:6]]
         table_matched_columns[table_name] = matched_cols
-        cols_str = ", ".join(matched_cols)
-        lines.append(f'  - "{catalog.schema}"."{table.name}"({cols_str})')
+
+        # M-Schema format: table with description + enriched columns
+        table_desc_data = desc_tables.get(table_name, {})
+        table_desc = table_desc_data.get("description", "")
+        table_header = f'  "{catalog.schema}"."{table.name}"'
+        if table_desc:
+            table_header += f" — {table_desc}"
+        lines.append(table_header)
+
+        col_descs = table_desc_data.get("columns", {})
+        for col_name in matched_cols:
+            col_info = col_descs.get(col_name, {})
+            col_type = col_info.get("type", "")
+            col_desc = col_info.get("description", "")
+            sample_vals = col_info.get("sample_values", [])
+            sem_type = col_info.get("semantic_type", "")
+            pref_filter = col_info.get("preferred_filter", "")
+
+            col_line = f"    {col_name} ({col_type})"
+            if col_desc:
+                col_line += f": {col_desc}"
+            extras: List[str] = []
+            if sem_type:
+                extras.append(f"type={sem_type}")
+            if pref_filter:
+                extras.append(f"filter: {pref_filter}")
+            if sample_vals:
+                preview = ", ".join(str(v) for v in sample_vals[:5])
+                extras.append(f"values: {preview}")
+            if extras:
+                col_line += f" [{', '.join(extras)}]"
+            lines.append(col_line)
 
     rel_lines: List[str] = []
     for fk in catalog.fks:
@@ -330,28 +364,20 @@ def suggest_schema_snippet(
                 f'  - "{catalog.schema}"."{fk.src_table}".{fk.src_column} -> '
                 f'"{catalog.schema}"."{fk.tgt_table}".{fk.tgt_column}'
             )
+
+    # Also add relationships from schema_descriptions
+    for table_name in top:
+        table_desc_data = desc_tables.get(table_name, {})
+        for rel in table_desc_data.get("relationships", []):
+            rel_lines.append(f"  - {table_name}.{rel}")
+
     if rel_lines:
         lines.append("Relationships:")
-        lines.extend(sorted(rel_lines, key=str.lower))
+        lines.extend(sorted(set(rel_lines), key=str.lower))
 
-    semantic_lines: List[str] = []
     allowed_lines: List[str] = []
     for table_name in top:
-        table_semantics = semantics.get(table_name, {})
         for column in table_matched_columns.get(table_name, []):
-            meta = table_semantics.get(column)
-            if meta:
-                descriptor = meta.get("semantic_type") or "text"
-                preferred = meta.get("preferred_filter")
-                note_bits = [descriptor]
-                if preferred:
-                    note_bits.append(f"filter: {preferred}")
-                if meta.get("notes"):
-                    note_bits.append(meta["notes"])
-                semantic_lines.append(
-                    f'  - "{table_name}".{column}: {", ".join(note_bits)}'
-                )
-
             allowed = _match_allowed_values(column, allowed_values)
             if allowed:
                 preview = ", ".join(allowed[:5])
@@ -359,9 +385,6 @@ def suggest_schema_snippet(
                     preview += ", …"
                 allowed_lines.append(f'  - {column}: {{{preview}}}')
 
-    if semantic_lines:
-        lines.append("Semantic hints:")
-        lines.extend(semantic_lines)
     if allowed_lines:
         lines.append("Allowed values (samples):")
         lines.extend(allowed_lines)
