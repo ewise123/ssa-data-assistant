@@ -1,5 +1,6 @@
 # app/ai_sql.py
 import os
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from openai import OpenAI
@@ -289,6 +290,97 @@ def propose_sql(
     return sql, hint
 
 
+class SQLErrorType(Enum):
+    SYNTAX_ERROR = "syntax"
+    UNKNOWN_COLUMN = "unknown_column"
+    UNKNOWN_TABLE = "unknown_table"
+    EXECUTION_ERROR = "execution"
+    EMPTY_RESULT = "empty"
+    TIMEOUT = "timeout"
+    PERMISSION_DENIED = "permission"
+    GENERIC = "generic"
+
+
+def classify_error(reason: str, previous_sql: str = "") -> SQLErrorType:
+    """Classify an error string into an actionable error type."""
+    r = reason.lower()
+    if "column" in r and ("not exist" in r or "does not exist" in r or "unknown" in r):
+        return SQLErrorType.UNKNOWN_COLUMN
+    if "relation" in r and ("not exist" in r or "does not exist" in r):
+        return SQLErrorType.UNKNOWN_TABLE
+    if "syntax" in r or "parse" in r:
+        return SQLErrorType.SYNTAX_ERROR
+    if "timeout" in r or "cancel" in r or "statement_timeout" in r:
+        return SQLErrorType.TIMEOUT
+    if "permission" in r or "denied" in r:
+        return SQLErrorType.PERMISSION_DENIED
+    if "no rows" in r or "empty" in r:
+        return SQLErrorType.EMPTY_RESULT
+    return SQLErrorType.EXECUTION_ERROR
+
+
+_ERROR_REPAIR_PROMPTS: Dict[SQLErrorType, str] = {
+    SQLErrorType.UNKNOWN_COLUMN: (
+        "The query failed because a column does not exist.\n"
+        "Error: {reason}\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: Check the schema hint above for the correct column names. "
+        "Column names are case-sensitive when double-quoted. "
+        "Write ONE corrected SELECT using only columns from the schema hint."
+    ),
+    SQLErrorType.UNKNOWN_TABLE: (
+        "The query failed because a table does not exist.\n"
+        "Error: {reason}\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: Check the schema hint above for correct table names. "
+        "Always use schema-qualified names: \"Project_Master_Database\".\"TableName\". "
+        "Write ONE corrected SELECT."
+    ),
+    SQLErrorType.SYNTAX_ERROR: (
+        "The query has a SQL syntax error.\n"
+        "Error: {reason}\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: Correct the syntax. Use PostgreSQL dialect. "
+        "Write ONE corrected SELECT."
+    ),
+    SQLErrorType.TIMEOUT: (
+        "The query timed out (exceeded 10 seconds).\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: Simplify the query. Reduce the number of JOINs, "
+        "add more specific WHERE conditions, or remove subqueries. "
+        "Write ONE simpler SELECT that answers the same question."
+    ),
+    SQLErrorType.EMPTY_RESULT: (
+        "The query executed successfully but returned zero rows.\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: The filter conditions are probably too restrictive or use wrong values. "
+        "Check the sample values in the schema hint. Try using ILIKE with wildcards "
+        "instead of exact matches. Broaden the WHERE conditions. "
+        "Write ONE corrected SELECT that is more likely to match data."
+    ),
+    SQLErrorType.EXECUTION_ERROR: (
+        "The query failed during execution.\n"
+        "Error: {reason}\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: Read the error message carefully. Use only tables and columns "
+        "from the schema hint. Write ONE corrected SELECT."
+    ),
+    SQLErrorType.PERMISSION_DENIED: (
+        "The query was denied due to permissions.\n"
+        "Error: {reason}\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Fix: Use only SELECT on user tables. Do not access system catalogs. "
+        "Write ONE corrected SELECT."
+    ),
+    SQLErrorType.GENERIC: (
+        "The previous SQL did not produce useful results.\n"
+        "Error: {reason}\n"
+        "Previous SQL:\n{previous_sql}\n\n"
+        "Write ONE corrected SELECT using only the schema hint above."
+    ),
+}
+
+
 def propose_sql_repair(
     question: str,
     previous_sql: str,
@@ -300,23 +392,17 @@ def propose_sql_repair(
     disambiguation: Optional[Dict[str, Any]],
 ) -> Tuple[str, Optional[SchemaHint]]:
     """
-    Ask the model to repair an unsatisfactory SQL query using DB feedback and schema metadata.
+    Ask the model to repair an unsatisfactory SQL query using classified error feedback.
     Returns the repaired SQL (or empty string) and the schema hint used.
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
-    repair_context = (
-        "The previous SQL did not produce useful results. Read the details below and write ONE corrected SELECT.\n"
-        f"Original SQL:\n{previous_sql}\n\n"
-        f"Issue: {reason}\n"
-        "Requirements:\n"
-        "- Use ONLY tables/columns from the schema hint.\n"
-        "- Keep schema-qualified identifiers with double quotes.\n"
-        "- Prefer joins and filters suggested by the intent guidance.\n"
-        "- Include LIMIT 100 unless a smaller limit is explicitly required.\n"
-        "Return ONLY the SQL."
-    )
+    error_type = classify_error(reason, previous_sql)
+    template = _ERROR_REPAIR_PROMPTS.get(error_type, _ERROR_REPAIR_PROMPTS[SQLErrorType.GENERIC])
+    repair_context = template.format(reason=reason, previous_sql=previous_sql)
+
+    print(f"[repair] Error classified as {error_type.value}: {reason[:100]}")
 
     messages, hint = _build_messages(
         question,

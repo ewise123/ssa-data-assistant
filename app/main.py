@@ -501,39 +501,48 @@ def ask(req: AskRequest):
             error_message = str(exc)
             raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {exc}") from exc
 
-        try:
-            # 2. Execute first attempt
-            columns, rows = run_select(safe_sql)
-        except Exception as exc:
-            err_text = str(exc)
-            print(f"[ask] execution error -> attempting repair ({err_text})")
+        # 2. Execute with up to 2 repair attempts
+        max_repairs = 2
+        last_error = ""
+        for attempt in range(max_repairs + 1):
             try:
-                safe_sql, columns, rows = _repair(err_text, safe_sql)
-                print("[ask] repair succeeded after execution error")
-            except Exception as repair_exc:
-                status = "error"
-                error_message = f"{err_text}; repair failed: {repair_exc}"
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Database error: {err_text}; repair failed: {repair_exc}",
-                ) from repair_exc
-
-        # 3. If the query ran but returned no rows, try one guided repair
-        if active_catalog and schema_hint and len(rows) == 0:
-            print(f"[ask] no rows returned; attempting repair via intent '{schema_hint.primary_intent}'")
-            try:
-                candidate_sql, new_cols, new_rows = _repair("no rows returned", safe_sql)
-                if new_rows:
-                    print("[ask] repair produced rows; returning repaired result")
-                    safe_sql = candidate_sql
-                    columns = new_cols
-                    rows = new_rows
-                else:
-                    print("[ask] repair still returned zero rows; returning original result")
-                    status = "empty"
-            except Exception as repair_exc:
-                print(f"[ask] repair attempt failed: {repair_exc}")
+                columns, rows = run_select(safe_sql)
+                # Execution succeeded
+                if rows:
+                    break  # Got results, done
+                # Empty result — try repair if attempts remain
+                if attempt < max_repairs and active_catalog and schema_hint:
+                    print(f"[ask] attempt {attempt + 1}: no rows returned; repairing...")
+                    try:
+                        safe_sql, columns, rows = _repair("no rows returned", safe_sql)
+                        if rows:
+                            print(f"[ask] repair attempt {attempt + 1} produced {len(rows)} rows")
+                            break
+                    except Exception:
+                        pass
                 status = "empty"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if attempt < max_repairs:
+                    print(f"[ask] attempt {attempt + 1}: execution error -> repairing ({last_error[:100]})")
+                    try:
+                        safe_sql, columns, rows = _repair(last_error, safe_sql)
+                        if rows:
+                            print(f"[ask] repair attempt {attempt + 1} succeeded")
+                            break
+                        # Repair produced SQL but need to re-execute in next iteration
+                        continue
+                    except Exception as repair_exc:
+                        last_error = f"{last_error}; repair failed: {repair_exc}"
+                        continue
+                else:
+                    status = "error"
+                    error_message = last_error
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Database error after {max_repairs} repair attempts: {last_error}",
+                    )
 
         row_count = len(rows)
         response_status = status
