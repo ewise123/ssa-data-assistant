@@ -93,7 +93,7 @@ from .query_metrics import (
     record_query, fetch_top_queries, fetch_problem_queries,
     fetch_verifiable_queries, verify_query, fetch_verified_queries,
 )
-from .rag import SchemaRetriever, GoldenQueryStore
+from .rag import SchemaRetriever, GoldenQueryStore, DocumentationStore, index_config_as_documentation
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -114,6 +114,7 @@ CONFIG: Dict[str, Any] = {
 SCHEMA_RETRIEVER: Optional[SchemaRetriever] = None
 SQLGLOT_SCHEMA: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None
 GOLDEN_STORE: Optional[GoldenQueryStore] = None
+DOC_STORE: Optional[DocumentationStore] = None
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -138,7 +139,7 @@ def index() -> FileResponse:
 
 # --- Load catalog + config helpers ---
 def _load_catalog_and_config() -> Dict[str, Any]:
-    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA, GOLDEN_STORE
+    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA, GOLDEN_STORE, DOC_STORE
     result: Dict[str, Any] = {"catalog": {}, "config": {}}
 
     try:
@@ -238,6 +239,19 @@ def _load_catalog_and_config() -> Dict[str, Any]:
     except Exception as exc:
         print(f"[rag] Failed to initialize golden query store: {exc}")
         GOLDEN_STORE = None
+
+    # Initialize documentation store from config files
+    try:
+        doc_store = DocumentationStore()
+        if doc_store.count == 0:
+            n = index_config_as_documentation(doc_store, CONFIG)
+            print(f"[rag] Indexed {n} documentation chunks into ChromaDB")
+        else:
+            print(f"[rag] Documentation store loaded ({doc_store.count} chunks)")
+        DOC_STORE = doc_store
+    except Exception as exc:
+        print(f"[rag] Failed to initialize documentation store: {exc}")
+        DOC_STORE = None
 
     return result
 
@@ -432,6 +446,16 @@ def ask(req: AskRequest):
         cols, rows = run_select(validated_sql)
         return validated_sql, cols, rows
 
+    # Retrieve relevant documentation context
+    doc_context: Optional[List[str]] = None
+    if DOC_STORE and DOC_STORE.count > 0:
+        try:
+            doc_hits = DOC_STORE.retrieve(req.question, k=3)
+            if doc_hits:
+                doc_context = [d.text for d in doc_hits]
+        except Exception as doc_exc:
+            print(f"[rag] Documentation retrieval failed: {doc_exc}")
+
     # Retrieve golden examples for dynamic few-shot
     golden_examples: Optional[List[Dict[str, Any]]] = None
     if GOLDEN_STORE and GOLDEN_STORE.count > 0:
@@ -457,6 +481,7 @@ def ask(req: AskRequest):
                 schema_hint=schema_hint,
                 disambiguation=disambiguation,
                 golden_examples=golden_examples,
+                doc_context=doc_context,
             )
             safe_sql = validate_sql(raw_sql)
         except Exception as exc:

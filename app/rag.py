@@ -478,3 +478,95 @@ def merge_scores(
 
     ranked = sorted(all_tables.values(), key=lambda t: t.final_score, reverse=True)
     return ranked[:top_k]
+
+
+# ------------------------------------------------------------------
+# Index config files into the documentation collection
+# ------------------------------------------------------------------
+
+def index_config_as_documentation(
+    doc_store: DocumentationStore,
+    config: dict[str, Any],
+) -> int:
+    """Convert config files (join_map, disambiguation, semantics, aliases)
+    into embeddable text chunks and index them into the documentation store.
+
+    Returns the number of chunks indexed.
+    """
+    chunks: list[tuple[str, str, str]] = []  # (text, source, doc_type)
+
+    # --- Join map: one chunk per intent path ---
+    join_map = config.get("join_map", {})
+    schema = join_map.get("schema", "Project_Master_Database")
+    for path in join_map.get("paths", []):
+        intent = path.get("intent", "")
+        desc = path.get("description", "")
+        tables = path.get("tables", [])
+        joins = path.get("joins", [])
+        defaults = path.get("result_defaults", [])
+        filters = path.get("canonical_filters", [])
+
+        lines = [f"Query pattern: {intent}. {desc}"]
+        lines.append(f"Tables involved: {', '.join(tables)}.")
+        if joins:
+            join_strs = []
+            for pair in joins:
+                join_strs.append(f"{pair[0]} = {pair[1]}")
+            lines.append(f"Join path: {'; '.join(join_strs)}.")
+        if filters:
+            filter_strs = []
+            for f in filters:
+                filter_strs.append(
+                    f"{f.get('table')}.{f.get('column')} using {f.get('preferred_filter')} with pattern {f.get('pattern')}"
+                )
+            lines.append(f"Filters: {'; '.join(filter_strs)}.")
+        if defaults:
+            lines.append(f"Recommended SELECT columns: {', '.join(defaults)}.")
+
+        chunks.append((" ".join(lines), f"join_map:{intent}", "join_path"))
+
+    # --- Disambiguation rules: one chunk per rule ---
+    disambig = config.get("disambiguation", {})
+    for rule in disambig.get("rules", []):
+        keywords = rule.get("if_contains", [])
+        dataset = rule.get("dataset", "")
+        prefer = rule.get("prefer_tables", [])
+        text = (
+            f"When the question mentions {', '.join(repr(k) for k in keywords)}, "
+            f"this is about the {dataset} domain. "
+            f"Use these tables: {', '.join(prefer)}."
+        )
+        chunks.append((text, f"disambiguation:{dataset}:{keywords[0] if keywords else ''}", "rule"))
+
+    # --- Column semantics: group by table for denser chunks ---
+    semantics = config.get("semantics", {})
+    for table_name, columns in semantics.items():
+        col_descriptions = []
+        for col_name, meta in columns.items():
+            parts = [f"{table_name}.{col_name}"]
+            if meta.get("semantic_type"):
+                parts.append(f"type={meta['semantic_type']}")
+            if meta.get("preferred_filter"):
+                parts.append(f"filter with {meta['preferred_filter']}")
+            if meta.get("notes"):
+                parts.append(meta["notes"])
+            col_descriptions.append(", ".join(parts))
+        text = f"Column details for {table_name}: " + "; ".join(col_descriptions) + "."
+        chunks.append((text, f"semantics:{table_name}", "column_info"))
+
+    # --- Aliases: one chunk per category ---
+    aliases = config.get("aliases", {})
+    for category, mapping in aliases.items():
+        alias_strs = []
+        for canonical, alias_list in list(mapping.items())[:20]:  # cap to avoid huge chunks
+            alias_strs.append(f"{canonical} (also known as: {', '.join(alias_list)})")
+        text = f"Aliases for {category}: {'; '.join(alias_strs)}."
+        chunks.append((text, f"aliases:{category}", "alias"))
+
+    if not chunks:
+        return 0
+
+    for text, source, doc_type in chunks:
+        doc_store.add(text, source=source, doc_type=doc_type)
+
+    return len(chunks)

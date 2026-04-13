@@ -135,6 +135,7 @@ def _build_messages(
     schema_hint: Optional[SchemaHint],
     repair_context: Optional[str] = None,
     golden_examples: Optional[List[Dict[str, str]]] = None,
+    doc_context: Optional[List[str]] = None,
 ) -> Tuple[
     List[Union[
         ChatCompletionSystemMessageParam,
@@ -210,6 +211,15 @@ def _build_messages(
                 )
                 break
 
+    if doc_context:
+        doc_text = "\n".join(f"- {chunk}" for chunk in doc_context)
+        messages.append(
+            ChatCompletionSystemMessageParam(
+                role="system",
+                content=f"Relevant business rules and documentation:\n{doc_text}"
+            )
+        )
+
     if repair_context:
         messages.append(
             ChatCompletionSystemMessageParam(
@@ -245,6 +255,7 @@ def propose_sql(
     schema_hint: Optional[SchemaHint] = None,
     disambiguation: Optional[Dict[str, Any]] = None,
     golden_examples: Optional[List[Dict[str, str]]] = None,
+    doc_context: Optional[List[str]] = None,
 ) -> Tuple[str, Optional[SchemaHint]]:
     """
     Generate SQL for the user's natural-language question.
@@ -261,6 +272,7 @@ def propose_sql(
         disambiguation,
         schema_hint,
         golden_examples=golden_examples,
+        doc_context=doc_context,
     )
 
     try:
