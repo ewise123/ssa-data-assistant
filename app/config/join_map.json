@@ -155,7 +155,7 @@
     },
     {
       "intent": "engagements_with_client",
-      "description": "Engagements with client firm name.",
+      "description": "Engagements or projects with client firm name. Use for any engagement/project query to always include the client name. Covers: projects started in a year, active engagements, engagement status, deliverables, case studies.",
       "tables": [
         "ClientEngagement",
         "ClientList"

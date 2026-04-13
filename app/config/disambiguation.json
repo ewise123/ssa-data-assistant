@@ -101,7 +101,10 @@
     {
       "if_contains": [
         "project",
+        "projects",
         "engagement",
+        "engagements",
+        "started",
         "team",
         "milestones",
         "deliverables",
@@ -111,9 +114,9 @@
       "dataset": "engagements",
       "prefer_tables": [
         "ClientEngagement",
+        "ClientList",
         "ProjectTeam",
-        "ConsolidatedResourceRoster",
-        "ClientList"
+        "ConsolidatedResourceRoster"
       ]
     },
     {
