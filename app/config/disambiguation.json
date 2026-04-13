@@ -70,6 +70,23 @@
     },
     {
       "if_contains": [
+        "who knows",
+        "knows people",
+        "connected to contacts",
+        "resources for contacts",
+        "resources know the client",
+        "resources know client"
+      ],
+      "dataset": "clients",
+      "prefer_tables": [
+        "ClientContactResource",
+        "ClientContact",
+        "ConsolidatedResourceRoster",
+        "ClientList"
+      ]
+    },
+    {
+      "if_contains": [
         "client contact",
         "client contacts",
         "client email",
@@ -84,7 +101,10 @@
     {
       "if_contains": [
         "project",
+        "projects",
         "engagement",
+        "engagements",
+        "started",
         "team",
         "milestones",
         "deliverables",
@@ -94,9 +114,9 @@
       "dataset": "engagements",
       "prefer_tables": [
         "ClientEngagement",
+        "ClientList",
         "ProjectTeam",
-        "ConsolidatedResourceRoster",
-        "ClientList"
+        "ConsolidatedResourceRoster"
       ]
     },
     {

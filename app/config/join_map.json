@@ -3,13 +3,11 @@
   "paths": [
     {
       "intent": "resources_by_tool",
-      "description": "Resources who use a given tool, including proficiency and last validation.",
+      "description": "Resources who use a given tool. Uses DISTINCT to avoid duplicates. Do NOT join to capabilities unless the user specifically asks for capabilities too.",
       "tables": [
         "FirmTool",
         "ResourceTool",
-        "ConsolidatedResourceRoster",
-        "ResourceCapability",
-        "FirmCapabilities"
+        "ConsolidatedResourceRoster"
       ],
       "joins": [
         [
@@ -19,14 +17,6 @@
         [
           "ResourceTool.resource_id",
           "ConsolidatedResourceRoster.resource_id"
-        ],
-        [
-          "ResourceCapability.resource_id",
-          "ConsolidatedResourceRoster.resource_id"
-        ],
-        [
-          "ResourceCapability.capability_id",
-          "FirmCapabilities.capability_id"
         ]
       ],
       "canonical_filters": [
@@ -35,21 +25,14 @@
           "column": "tool_name",
           "preferred_filter": "ilike",
           "pattern": "%{term}%"
-        },
-        {
-          "table": "FirmCapabilities",
-          "column": "capability_name",
-          "preferred_filter": "ilike",
-          "pattern": "%{term}%"
         }
       ],
       "result_defaults": [
-        "ConsolidatedResourceRoster.name AS resource_name",
+        "DISTINCT ConsolidatedResourceRoster.name AS resource_name",
         "ConsolidatedResourceRoster.role_rank",
         "FirmTool.tool_name",
         "ResourceTool.proficiency_level",
-        "ResourceTool.last_validated",
-        "FirmCapabilities.capability_name"
+        "ResourceTool.last_validated"
       ]
     },
     {
@@ -133,7 +116,7 @@
     },
     {
       "intent": "resources_with_client_contacts",
-      "description": "Resources tied to client contacts via the ClientContactResource mapping table.",
+      "description": "Who knows people at a client. Resources connected to client contacts. Use when someone asks who knows, is connected to, or is tied to client contacts. ALWAYS show BOTH the client contact info AND the SSA resource info in the SELECT.",
       "tables": [
         "ClientList",
         "ClientContact",
@@ -172,7 +155,7 @@
     },
     {
       "intent": "engagements_with_client",
-      "description": "Engagements with client firm name.",
+      "description": "Engagements or projects with client firm name. Use for any engagement/project query to always include the client name. Covers: projects started in a year, active engagements, engagement status, deliverables, case studies.",
       "tables": [
         "ClientEngagement",
         "ClientList"
@@ -310,6 +293,41 @@
         "ConsolidatedResourceRoster.name AS ssa_contact_name",
         "ConsolidatedResourceRoster.resource_type AS ssa_contact_type",
         "ConsolidatedResourceRoster.role_rank AS ssa_contact_role"
+      ]
+    },
+    {
+      "intent": "resources_with_tools_and_capabilities",
+      "description": "List resources with their tools AND/OR capabilities. Use LEFT JOINs so resources appear even if they have no tools or no capabilities. Use DISTINCT to avoid duplicate rows.",
+      "tables": ["ConsolidatedResourceRoster", "ResourceTool", "FirmTool", "ResourceCapability", "FirmCapabilities"],
+      "joins": [
+        ["ResourceTool.resource_id", "ConsolidatedResourceRoster.resource_id"],
+        ["ResourceTool.tool_id", "FirmTool.tool_id"],
+        ["ResourceCapability.resource_id", "ConsolidatedResourceRoster.resource_id"],
+        ["ResourceCapability.capability_id", "FirmCapabilities.capability_id"]
+      ],
+      "result_defaults": [
+        "DISTINCT ConsolidatedResourceRoster.name AS resource_name",
+        "ConsolidatedResourceRoster.role_rank",
+        "FirmTool.tool_name",
+        "FirmCapabilities.capability_name"
+      ]
+    },
+    {
+      "intent": "directors_with_tools",
+      "description": "What tools a specific title/role uses. Filter by title ILIKE the role name. For 'Director' specifically, EXCLUDE Managing Directors by adding AND title NOT ILIKE '%Managing%'.",
+      "tables": ["ConsultantRoster", "TitleMaster", "ConsolidatedResourceRoster", "ResourceTool", "FirmTool"],
+      "joins": [
+        ["ConsultantRoster.title_id", "TitleMaster.title_id"],
+        ["ResourceTool.resource_id", "ConsolidatedResourceRoster.resource_id"],
+        ["ResourceTool.tool_id", "FirmTool.tool_id"]
+      ],
+      "canonical_filters": [
+        {"table": "TitleMaster", "column": "title", "preferred_filter": "ilike", "pattern": "%{term}%"}
+      ],
+      "result_defaults": [
+        "ConsolidatedResourceRoster.name AS resource_name",
+        "TitleMaster.title",
+        "FirmTool.tool_name"
       ]
     }
   ]

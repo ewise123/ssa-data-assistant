@@ -88,8 +88,14 @@ from .config_loader import (
     load_join_map,
 )
 from .db import describe_dsn, run_select
-from .sql_validator import validate_sql
-from .query_metrics import record_query, fetch_top_queries, fetch_problem_queries
+from .sql_validator import validate_sql, build_sqlglot_schema
+from .query_metrics import (
+    record_query, fetch_top_queries, fetch_problem_queries,
+    fetch_verifiable_queries, verify_query, fetch_verified_queries,
+    record_feedback,
+)
+from .rag import SchemaRetriever, GoldenQueryStore, DocumentationStore, index_config_as_documentation
+from .schema_enrichment import load_schema_descriptions
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -107,6 +113,11 @@ CONFIG: Dict[str, Any] = {
     "allowed": {},
     "disambiguation": {"rules": []},
 }
+SCHEMA_RETRIEVER: Optional[SchemaRetriever] = None
+SQLGLOT_SCHEMA: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None
+GOLDEN_STORE: Optional[GoldenQueryStore] = None
+DOC_STORE: Optional[DocumentationStore] = None
+SCHEMA_DESCRIPTIONS: Optional[Dict[str, Any]] = None
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -131,7 +142,7 @@ def index() -> FileResponse:
 
 # --- Load catalog + config helpers ---
 def _load_catalog_and_config() -> Dict[str, Any]:
-    global CATALOG, CATALOG_ERROR, CONFIG
+    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA, GOLDEN_STORE, DOC_STORE, SCHEMA_DESCRIPTIONS
     result: Dict[str, Any] = {"catalog": {}, "config": {}}
 
     try:
@@ -139,6 +150,7 @@ def _load_catalog_and_config() -> Dict[str, Any]:
         CATALOG_ERROR = None
         catalog_tables = len(CATALOG.tables)
         catalog_fks = len(CATALOG.fks)
+        SQLGLOT_SCHEMA = build_sqlglot_schema(CATALOG)
         print(f"[catalog] Loaded {catalog_tables} tables, {catalog_fks} FKs from schema {SCHEMA}")
         result["catalog"] = {
             "schema": SCHEMA,
@@ -195,6 +207,62 @@ def _load_catalog_and_config() -> Dict[str, Any]:
             "disambiguation_rules": len(disambig.get("rules", [])),
             "error": None,
         }
+
+    # Load schema descriptions for M-Schema prompt enrichment
+    SCHEMA_DESCRIPTIONS = load_schema_descriptions()
+    if SCHEMA_DESCRIPTIONS:
+        desc_tables = SCHEMA_DESCRIPTIONS.get("tables", {})
+        print(f"[schema] Loaded M-Schema descriptions for {len(desc_tables)} tables")
+    else:
+        print("[schema] No schema_descriptions.yaml found; using bare column names in prompts")
+
+    # Initialize embedding-based schema retriever (if schema descriptions exist)
+    try:
+        retriever = SchemaRetriever()
+        if retriever.count == 0:
+            from pathlib import Path as _P
+            desc_path = _P("app/config/schema_descriptions.yaml")
+            if desc_path.exists():
+                n = retriever.index_from_yaml(desc_path)
+                print(f"[rag] Indexed {n} schema documents into ChromaDB")
+            else:
+                print("[rag] No schema_descriptions.yaml found; schema RAG disabled")
+        else:
+            print(f"[rag] Schema retriever loaded ({retriever.count} documents)")
+        SCHEMA_RETRIEVER = retriever
+    except Exception as exc:
+        print(f"[rag] Failed to initialize schema retriever: {exc}")
+        SCHEMA_RETRIEVER = None
+
+    # Initialize golden query store
+    try:
+        GOLDEN_STORE = GoldenQueryStore()
+        # Sync any verified queries from SQLite into ChromaDB
+        verified = fetch_verified_queries()
+        synced = 0
+        for vq in verified:
+            if vq["generated_sql"]:
+                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
+                synced += 1
+        if synced:
+            print(f"[rag] Synced {synced} verified golden queries to ChromaDB")
+        print(f"[rag] Golden query store loaded ({GOLDEN_STORE.count} examples)")
+    except Exception as exc:
+        print(f"[rag] Failed to initialize golden query store: {exc}")
+        GOLDEN_STORE = None
+
+    # Initialize documentation store from config files
+    try:
+        doc_store = DocumentationStore()
+        if doc_store.count == 0:
+            n = index_config_as_documentation(doc_store, CONFIG)
+            print(f"[rag] Indexed {n} documentation chunks into ChromaDB")
+        else:
+            print(f"[rag] Documentation store loaded ({doc_store.count} chunks)")
+        DOC_STORE = doc_store
+    except Exception as exc:
+        print(f"[rag] Failed to initialize documentation store: {exc}")
+        DOC_STORE = None
 
     return result
 
@@ -276,17 +344,29 @@ def debug_catalog_reload(request: Request):
 def debug_router(q: str):
     if not CATALOG:
         return {"error": "catalog not loaded"}
+
+    vector_scores: Optional[Dict[str, float]] = None
+    if SCHEMA_RETRIEVER and SCHEMA_RETRIEVER.count > 0:
+        try:
+            rag_result = SCHEMA_RETRIEVER.retrieve_tables(q)
+            vector_scores = {t.name: t.vector_score for t in rag_result.tables}
+        except Exception:
+            pass
+
     hint = suggest_schema_snippet(
         q,
         CATALOG,
         config=CONFIG,
         disambiguation_rules=CONFIG.get("disambiguation"),
+        vector_scores=vector_scores,
+        schema_descriptions=SCHEMA_DESCRIPTIONS,
     )
     return {
         "snippet": hint.snippet,
         "tables": hint.tables,
         "intents": hint.intents,
         "datasets": hint.disambiguation_datasets,
+        "vector_scores": vector_scores,
     }
 
 
@@ -317,6 +397,7 @@ class AskMetadata(BaseModel):
     dataset: Optional[str]
     status: str
     row_count: int
+    query_id: Optional[int] = None
     error: Optional[str] = None
     timestamp: datetime
 
@@ -343,11 +424,22 @@ def ask(req: AskRequest):
     final_status_for_log: Optional[str] = None
 
     if active_catalog:
+        # Get vector similarity scores from RAG if available
+        vector_scores: Optional[Dict[str, float]] = None
+        if SCHEMA_RETRIEVER and SCHEMA_RETRIEVER.count > 0:
+            try:
+                rag_result = SCHEMA_RETRIEVER.retrieve_tables(req.question)
+                vector_scores = {t.name: t.vector_score for t in rag_result.tables}
+            except Exception as rag_exc:
+                print(f"[rag] Schema retrieval failed, falling back to keywords: {rag_exc}")
+
         schema_hint = suggest_schema_snippet(
             req.question,
             active_catalog,
             config=CONFIG,
             disambiguation_rules=disambiguation,
+            vector_scores=vector_scores,
+            schema_descriptions=SCHEMA_DESCRIPTIONS,
         )
 
     def _repair(reason: str, last_sql: str) -> Tuple[str, List[str], List[Dict[str, Any]]]:
@@ -364,9 +456,33 @@ def ask(req: AskRequest):
         )
         if new_hint:
             schema_hint = new_hint
-        validated_sql = validate_sql(repaired_sql)
+        validated_sql = validate_sql(repaired_sql, catalog_schema=SQLGLOT_SCHEMA)
         cols, rows = run_select(validated_sql)
         return validated_sql, cols, rows
+
+    # Retrieve relevant documentation context
+    doc_context: Optional[List[str]] = None
+    if DOC_STORE and DOC_STORE.count > 0:
+        try:
+            doc_hits = DOC_STORE.retrieve(req.question, k=3)
+            if doc_hits:
+                doc_context = [d.text for d in doc_hits]
+        except Exception as doc_exc:
+            print(f"[rag] Documentation retrieval failed: {doc_exc}")
+
+    # Retrieve golden examples for dynamic few-shot
+    golden_examples: Optional[List[Dict[str, Any]]] = None
+    if GOLDEN_STORE and GOLDEN_STORE.count > 0:
+        try:
+            golden_hits = GOLDEN_STORE.retrieve(req.question, k=3)
+            if golden_hits:
+                golden_examples = [
+                    {"user": g.question, "assistant": g.sql}
+                    for g in golden_hits
+                ]
+                print(f"[rag] Retrieved {len(golden_examples)} golden examples (best similarity: {golden_hits[0].similarity:.3f})")
+        except Exception as golden_exc:
+            print(f"[rag] Golden query retrieval failed: {golden_exc}")
 
     try:
         try:
@@ -378,57 +494,80 @@ def ask(req: AskRequest):
                 config=CONFIG,
                 schema_hint=schema_hint,
                 disambiguation=disambiguation,
+                golden_examples=golden_examples,
+                doc_context=doc_context,
             )
-            safe_sql = validate_sql(raw_sql)
+            safe_sql = validate_sql(raw_sql, catalog_schema=SQLGLOT_SCHEMA)
         except Exception as exc:
             status = "error"
             error_message = str(exc)
             raise HTTPException(status_code=400, detail=f"Could not generate safe SQL: {exc}") from exc
 
-        try:
-            # 2. Execute first attempt
-            columns, rows = run_select(safe_sql)
-        except Exception as exc:
-            err_text = str(exc)
-            print(f"[ask] execution error -> attempting repair ({err_text})")
+        # 2. Execute with up to 2 repair attempts
+        max_repairs = 2
+        last_error = ""
+        for attempt in range(max_repairs + 1):
             try:
-                safe_sql, columns, rows = _repair(err_text, safe_sql)
-                print("[ask] repair succeeded after execution error")
-            except Exception as repair_exc:
-                status = "error"
-                error_message = f"{err_text}; repair failed: {repair_exc}"
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Database error: {err_text}; repair failed: {repair_exc}",
-                ) from repair_exc
-
-        # 3. If the query ran but returned no rows, try one guided repair
-        if active_catalog and schema_hint and len(rows) == 0:
-            print(f"[ask] no rows returned; attempting repair via intent '{schema_hint.primary_intent}'")
-            try:
-                candidate_sql, new_cols, new_rows = _repair("no rows returned", safe_sql)
-                if new_rows:
-                    print("[ask] repair produced rows; returning repaired result")
-                    safe_sql = candidate_sql
-                    columns = new_cols
-                    rows = new_rows
-                else:
-                    print("[ask] repair still returned zero rows; returning original result")
-                    status = "empty"
-            except Exception as repair_exc:
-                print(f"[ask] repair attempt failed: {repair_exc}")
+                columns, rows = run_select(safe_sql)
+                # Execution succeeded
+                if rows:
+                    break  # Got results, done
+                # Empty result — try repair if attempts remain
+                if attempt < max_repairs and active_catalog and schema_hint:
+                    print(f"[ask] attempt {attempt + 1}: no rows returned; repairing...")
+                    try:
+                        safe_sql, columns, rows = _repair("no rows returned", safe_sql)
+                        if rows:
+                            print(f"[ask] repair attempt {attempt + 1} produced {len(rows)} rows")
+                            break
+                    except Exception:
+                        pass
                 status = "empty"
+                break
+            except Exception as exc:
+                last_error = str(exc)
+                if attempt < max_repairs:
+                    print(f"[ask] attempt {attempt + 1}: execution error -> repairing ({last_error[:100]})")
+                    try:
+                        safe_sql, columns, rows = _repair(last_error, safe_sql)
+                        if rows:
+                            print(f"[ask] repair attempt {attempt + 1} succeeded")
+                            break
+                        # Repair produced SQL but need to re-execute in next iteration
+                        continue
+                    except Exception as repair_exc:
+                        last_error = f"{last_error}; repair failed: {repair_exc}"
+                        continue
+                else:
+                    status = "error"
+                    error_message = last_error
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Database error after {max_repairs} repair attempts: {last_error}",
+                    )
 
         row_count = len(rows)
         response_status = status
         if response_status == "ok" and row_count == 0:
             response_status = "empty"
         final_status_for_log = response_status
+
+        # Record query and capture ID for feedback
+        query_id = record_query(
+            question=req.question,
+            dataset=req.dataset,
+            status=response_status,
+            row_count=row_count,
+            error_message=error_message if response_status == "error" else None,
+            generated_sql=safe_sql,
+        )
+
         metadata = AskMetadata(
             question=req.question,
             dataset=req.dataset,
             status=response_status,
             row_count=row_count,
+            query_id=query_id,
             error=error_message if response_status == "error" else None,
             timestamp=datetime.now(timezone.utc),
         )
@@ -439,19 +578,15 @@ def ask(req: AskRequest):
         status = "error"
         if error_message is None:
             error_message = str(exc)
-        raise
-    finally:
-        effective_row_count = row_count if row_count is not None else len(rows)
-        final_status = final_status_for_log or status
-        if final_status == "ok" and effective_row_count == 0:
-            final_status = "empty"
         record_query(
             question=req.question,
             dataset=req.dataset,
-            status=final_status,
-            row_count=effective_row_count,
+            status="error",
+            row_count=0,
             error_message=error_message,
+            generated_sql=safe_sql,
         )
+        raise
 
 
 @app.get("/debug/db", include_in_schema=False)
@@ -591,3 +726,77 @@ def admin_problem_queries(limit: int = 50):
     </html>
     """
     return HTMLResponse(content=html_doc)
+
+
+# --- Golden query admin endpoints ---
+
+class VerifyRequest(BaseModel):
+    query_id: int
+    verified: bool = True
+
+
+@app.get("/admin/golden-queries", include_in_schema=False)
+def admin_golden_queries():
+    """List all verified golden queries."""
+    return fetch_verified_queries()
+
+
+@app.get("/admin/verifiable-queries", include_in_schema=False)
+def admin_verifiable_queries(limit: int = 50):
+    """List recent successful queries available for verification."""
+    return fetch_verifiable_queries(limit=max(1, min(limit, 200)))
+
+
+@app.post("/admin/verify-query", include_in_schema=False)
+def admin_verify_query(req: VerifyRequest):
+    """Mark a query as verified (golden) or unverified."""
+    found = verify_query(req.query_id, req.verified)
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
+
+    # Sync to golden query ChromaDB store
+    if req.verified and GOLDEN_STORE:
+        verified_queries = fetch_verified_queries()
+        for vq in verified_queries:
+            if vq["id"] == req.query_id and vq["generated_sql"]:
+                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
+                break
+
+    return {"ok": True, "query_id": req.query_id, "verified": req.verified}
+
+
+class FeedbackRequest(BaseModel):
+    query_id: int
+    feedback: str  # "positive" or "negative"
+    corrected_sql: Optional[str] = None
+    comment: Optional[str] = None
+
+
+@app.post("/feedback")
+def submit_feedback(req: FeedbackRequest):
+    """Record user feedback on a query result. Positive feedback auto-verifies as golden."""
+    if req.feedback not in ("positive", "negative"):
+        raise HTTPException(status_code=400, detail="feedback must be 'positive' or 'negative'")
+
+    # Validate corrected SQL before storing to prevent prompt poisoning
+    validated_correction = None
+    if req.corrected_sql:
+        try:
+            validated_correction = validate_sql(req.corrected_sql)
+        except (ValueError, Exception) as exc:
+            raise HTTPException(status_code=400, detail=f"Corrected SQL failed validation: {exc}")
+
+    found = record_feedback(req.query_id, req.feedback, validated_correction, req.comment)
+    if not found:
+        raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
+
+    # Positive feedback → sync to golden query store
+    if req.feedback == "positive" and GOLDEN_STORE:
+        verified = fetch_verified_queries()
+        for vq in verified:
+            if vq["id"] == req.query_id and vq["generated_sql"]:
+                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
+                print(f"[feedback] Added golden query from positive feedback (id={req.query_id})")
+                break
+
+    return {"ok": True, "query_id": req.query_id, "feedback": req.feedback}

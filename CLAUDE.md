@@ -27,7 +27,7 @@ User (browser) → Static SPA (index.html + Tailwind + Anime.js)
 
 - **Python 3.11+**, FastAPI, Pydantic
 - **psycopg** (v3) for PostgreSQL (read-only connections)
-- **OpenAI** Chat Completions (default model: `gpt-4o-mini`)
+- **OpenAI** Chat Completions (default model: `gpt-4.1-mini`, configurable via `OPENAI_MODEL` env var)
 - **SQLite** for local analytics (`data/query_metrics.db`)
 - **Static frontend**: single `index.html` with Tailwind CSS + Anime.js
 - No ORM — raw parameterized SQL only

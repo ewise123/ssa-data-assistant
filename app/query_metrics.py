@@ -45,6 +45,14 @@ def _ensure_database() -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(query_log)")}
         if "canonical_question" not in columns:
             conn.execute("ALTER TABLE query_log ADD COLUMN canonical_question TEXT")
+        if "generated_sql" not in columns:
+            conn.execute("ALTER TABLE query_log ADD COLUMN generated_sql TEXT")
+        if "verified" not in columns:
+            conn.execute("ALTER TABLE query_log ADD COLUMN verified INTEGER DEFAULT 0")
+        if "feedback" not in columns:
+            conn.execute("ALTER TABLE query_log ADD COLUMN feedback TEXT")
+        if "feedback_comment" not in columns:
+            conn.execute("ALTER TABLE query_log ADD COLUMN feedback_comment TEXT")
         pending = conn.execute(
             "SELECT id, question FROM query_log WHERE canonical_question IS NULL OR canonical_question = ''"
         ).fetchall()
@@ -79,23 +87,27 @@ def record_query(
     status: str,
     row_count: Optional[int] = None,
     error_message: Optional[str] = None,
-) -> None:
+    generated_sql: Optional[str] = None,
+) -> int:
     """
     Persist a query event for analytics. `status` should be one of:
     - "ok": results returned successfully
     - "empty": executed but no rows returned
     - "error": execution or generation error
+
+    Returns the row ID of the inserted record.
     """
     with _conn() as conn:
         canonical = _normalize_question(question)
-        conn.execute(
+        cur = conn.execute(
             """
-            INSERT INTO query_log (question, canonical_question, dataset, status, row_count, error_message)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO query_log (question, canonical_question, dataset, status, row_count, error_message, generated_sql)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (question, canonical, dataset, status, row_count, error_message),
+            (question, canonical, dataset, status, row_count, error_message, generated_sql),
         )
         conn.commit()
+        return cur.lastrowid or 0
 
 
 def fetch_top_queries(limit: int = 10) -> List[TopQueryRow]:
@@ -163,4 +175,110 @@ def fetch_problem_queries(limit: int = 50) -> List[ProblemQueryRow]:
                 last_error=row["last_error"],
             )
             for row in rows
+        ]
+
+
+def record_feedback(
+    query_id: int,
+    feedback: str,
+    corrected_sql: Optional[str] = None,
+    comment: Optional[str] = None,
+) -> bool:
+    """Record user feedback on a query. Returns True if the query was found.
+
+    Side effects on positive feedback:
+    - Sets verified=1 (marks as golden query for RAG retrieval)
+    - If corrected_sql is provided, overwrites generated_sql in the record
+    """
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE query_log SET feedback = ?, feedback_comment = ? WHERE id = ?",
+            (feedback, comment, query_id),
+        )
+        # If user provided corrected SQL, store it and auto-verify
+        if corrected_sql and feedback == "positive":
+            conn.execute(
+                "UPDATE query_log SET generated_sql = ?, verified = 1 WHERE id = ?",
+                (corrected_sql, query_id),
+            )
+        elif feedback == "positive":
+            conn.execute(
+                "UPDATE query_log SET verified = 1 WHERE id = ?",
+                (query_id,),
+            )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+class VerifiableQueryRow(TypedDict):
+    id: int
+    question: str
+    generated_sql: Optional[str]
+    status: str
+    row_count: Optional[int]
+    verified: int
+    created_at: str
+
+
+def fetch_verifiable_queries(limit: int = 50) -> List[VerifiableQueryRow]:
+    """Return recent successful queries that have SQL stored, for admin verification."""
+    with _conn() as conn:
+        cur = conn.execute(
+            """
+            SELECT id, question, generated_sql, status, row_count, verified, created_at
+            FROM query_log
+            WHERE generated_sql IS NOT NULL AND generated_sql != ''
+              AND status = 'ok'
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [
+            VerifiableQueryRow(
+                id=row["id"],
+                question=row["question"],
+                generated_sql=row["generated_sql"],
+                status=row["status"],
+                row_count=row["row_count"],
+                verified=row["verified"],
+                created_at=row["created_at"],
+            )
+            for row in cur.fetchall()
+        ]
+
+
+def verify_query(query_id: int, verified: bool = True) -> bool:
+    """Mark a query as verified (golden) or unverified. Returns True if found."""
+    with _conn() as conn:
+        cur = conn.execute(
+            "UPDATE query_log SET verified = ? WHERE id = ?",
+            (1 if verified else 0, query_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def fetch_verified_queries() -> List[VerifiableQueryRow]:
+    """Return all verified golden queries."""
+    with _conn() as conn:
+        cur = conn.execute(
+            """
+            SELECT id, question, generated_sql, status, row_count, verified, created_at
+            FROM query_log
+            WHERE verified = 1 AND generated_sql IS NOT NULL AND generated_sql != ''
+            ORDER BY created_at DESC
+            """,
+        )
+        return [
+            VerifiableQueryRow(
+                id=row["id"],
+                question=row["question"],
+                generated_sql=row["generated_sql"],
+                status=row["status"],
+                row_count=row["row_count"],
+                verified=row["verified"],
+                created_at=row["created_at"],
+            )
+            for row in cur.fetchall()
         ]
