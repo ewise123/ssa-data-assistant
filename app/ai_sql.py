@@ -176,25 +176,32 @@ def _build_messages(
         join_map = (config.get("join_map", {}) or {}).get("paths", [])
         for path in join_map:
             if path.get("intent") == hint.primary_intent:
+                schema = config.get("join_map", {}).get("schema", "Project_Master_Database")
                 intent_lines = [
-                    f"Intent: {path.get('intent')}",
+                    f"IMPORTANT — This question matches the '{path.get('intent')}' pattern.",
                     f"Description: {path.get('description', '').strip()}",
-                    f"Tables: {', '.join(path.get('tables', []))}",
+                    f"You MUST use ALL of these tables: {', '.join(path.get('tables', []))}",
                 ]
                 joins = path.get("joins") or []
                 if joins:
-                    join_str = "; ".join(" = ".join(pair) for pair in joins)
-                    intent_lines.append(f"Joins: {join_str}")
+                    intent_lines.append("You MUST include these exact JOINs:")
+                    for pair in joins:
+                        src, tgt = pair
+                        src_table, src_col = src.split(".")
+                        tgt_table, tgt_col = tgt.split(".")
+                        intent_lines.append(
+                            f'  JOIN "{schema}"."{tgt_table}" ON "{schema}"."{src_table}".{src_col} = "{schema}"."{tgt_table}".{tgt_col}'
+                        )
                 filters = path.get("canonical_filters") or []
                 if filters:
-                    filter_str = "; ".join(
-                        f"{flt.get('table')}.{flt.get('column')} {flt.get('preferred_filter')} {flt.get('pattern')}"
-                        for flt in filters
-                    )
-                    intent_lines.append(f"Canonical filters: {filter_str}")
+                    intent_lines.append("Apply these filters:")
+                    for flt in filters:
+                        intent_lines.append(
+                            f"  {flt.get('table')}.{flt.get('column')} {flt.get('preferred_filter')} {flt.get('pattern')}"
+                        )
                 defaults = path.get("result_defaults") or []
                 if defaults:
-                    intent_lines.append(f"Default columns: {', '.join(defaults)}")
+                    intent_lines.append(f"SELECT these columns: {', '.join(defaults)}")
                 messages.append(
                     ChatCompletionSystemMessageParam(
                         role="system",
