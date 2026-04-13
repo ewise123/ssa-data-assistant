@@ -822,7 +822,7 @@
           body: JSON.stringify(body),
         });
       } catch (err) {
-        console.error("Feedback error:", err);
+        // Feedback submission failed silently — non-critical
       }
       feedbackThanks.classList.remove("hidden");
       feedbackCommentBox.classList.add("hidden");

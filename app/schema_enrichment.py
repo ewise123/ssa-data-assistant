@@ -28,7 +28,7 @@ load_dotenv()
 
 from app.catalog import Catalog, Column, Table, load_catalog
 from app.config_loader import load_column_semantics
-from app.db import run_select
+from app.db import get_conn, run_select
 
 _CONFIG_DIR = Path("app/config")
 _OUTPUT_PATH = _CONFIG_DIR / "schema_descriptions.yaml"
@@ -80,29 +80,38 @@ def _fetch_column_stats(schema: str, catalog: Catalog) -> dict[str, dict[str, di
 
     # --- Fallback: query distinct values directly for text/varchar columns ---
     print("  pg_stats not accessible; falling back to direct sample queries...")
+    from psycopg import sql as psql
+    from psycopg.rows import dict_row
+
     text_types = {"character varying", "text", "varchar", "char", "character"}
-    for table_name, table in catalog.tables.items():
-        for col in table.columns:
-            if col.data_type.lower() not in text_types:
-                continue
-            try:
-                sample_sql = (
-                    f'SELECT DISTINCT "{col.name}" AS val '
-                    f'FROM "{schema}"."{table_name}" '
-                    f'WHERE "{col.name}" IS NOT NULL '
-                    f"LIMIT {_MAX_SAMPLE_VALUES}"
-                )
-                _, sample_rows = run_select(sample_sql)
-                vals = [str(r["val"]) for r in sample_rows if r.get("val")]
-                if vals:
-                    result.setdefault(table_name, {})[col.name] = {
-                        "n_distinct": None,
-                        "null_frac": 0,
-                        "sample_values": vals,
-                    }
-            except Exception:
-                # Skip columns we can't query (e.g., timeout on large tables)
-                continue
+    with get_conn() as conn:
+        for table_name, table in catalog.tables.items():
+            for col in table.columns:
+                if col.data_type.lower() not in text_types:
+                    continue
+                try:
+                    query = psql.SQL(
+                        "SELECT DISTINCT {col} AS val FROM {schema}.{table} "
+                        "WHERE {col} IS NOT NULL LIMIT {limit}"
+                    ).format(
+                        col=psql.Identifier(col.name),
+                        schema=psql.Identifier(schema),
+                        table=psql.Identifier(table_name),
+                        limit=psql.Literal(_MAX_SAMPLE_VALUES),
+                    )
+                    with conn.cursor(row_factory=dict_row) as cur:
+                        cur.execute(query)
+                        sample_rows = cur.fetchall()
+                    vals = [str(r["val"]) for r in sample_rows if r.get("val")]
+                    if vals:
+                        result.setdefault(table_name, {})[col.name] = {
+                            "n_distinct": None,
+                            "null_frac": 0,
+                            "sample_values": vals,
+                        }
+                except Exception:
+                    # Skip columns we can't query (e.g., timeout on large tables)
+                    continue
     return result
 
 

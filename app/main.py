@@ -456,7 +456,7 @@ def ask(req: AskRequest):
         )
         if new_hint:
             schema_hint = new_hint
-        validated_sql = validate_sql(repaired_sql)
+        validated_sql = validate_sql(repaired_sql, catalog_schema=SQLGLOT_SCHEMA)
         cols, rows = run_select(validated_sql)
         return validated_sql, cols, rows
 
@@ -497,7 +497,7 @@ def ask(req: AskRequest):
                 golden_examples=golden_examples,
                 doc_context=doc_context,
             )
-            safe_sql = validate_sql(raw_sql)
+            safe_sql = validate_sql(raw_sql, catalog_schema=SQLGLOT_SCHEMA)
         except Exception as exc:
             status = "error"
             error_message = str(exc)
@@ -778,7 +778,15 @@ def submit_feedback(req: FeedbackRequest):
     if req.feedback not in ("positive", "negative"):
         raise HTTPException(status_code=400, detail="feedback must be 'positive' or 'negative'")
 
-    found = record_feedback(req.query_id, req.feedback, req.corrected_sql, req.comment)
+    # Validate corrected SQL before storing to prevent prompt poisoning
+    validated_correction = None
+    if req.corrected_sql:
+        try:
+            validated_correction = validate_sql(req.corrected_sql)
+        except (ValueError, Exception) as exc:
+            raise HTTPException(status_code=400, detail=f"Corrected SQL failed validation: {exc}")
+
+    found = record_feedback(req.query_id, req.feedback, validated_correction, req.comment)
     if not found:
         raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
 

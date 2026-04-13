@@ -184,7 +184,12 @@ def record_feedback(
     corrected_sql: Optional[str] = None,
     comment: Optional[str] = None,
 ) -> bool:
-    """Record user feedback on a query. Returns True if the query was found."""
+    """Record user feedback on a query. Returns True if the query was found.
+
+    Side effects on positive feedback:
+    - Sets verified=1 (marks as golden query for RAG retrieval)
+    - If corrected_sql is provided, overwrites generated_sql in the record
+    """
     with _conn() as conn:
         cur = conn.execute(
             "UPDATE query_log SET feedback = ?, feedback_comment = ? WHERE id = ?",

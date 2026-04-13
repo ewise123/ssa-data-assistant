@@ -497,7 +497,6 @@ def index_config_as_documentation(
 
     # --- Join map: one chunk per intent path ---
     join_map = config.get("join_map", {})
-    schema = join_map.get("schema", "Project_Master_Database")
     for path in join_map.get("paths", []):
         intent = path.get("intent", "")
         desc = path.get("description", "")
