@@ -244,7 +244,7 @@ def propose_sql(
     Returns the SQL and the schema hint used (for downstream repair logic).
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
     messages, hint = _build_messages(
         question,
@@ -285,7 +285,7 @@ def propose_sql_repair(
     Returns the repaired SQL (or empty string) and the schema hint used.
     """
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
     repair_context = (
         "The previous SQL did not produce useful results. Read the details below and write ONE corrected SELECT.\n"
