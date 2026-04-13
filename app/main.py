@@ -88,7 +88,7 @@ from .config_loader import (
     load_join_map,
 )
 from .db import describe_dsn, run_select
-from .sql_validator import validate_sql
+from .sql_validator import validate_sql, build_sqlglot_schema
 from .query_metrics import record_query, fetch_top_queries, fetch_problem_queries
 from .rag import SchemaRetriever
 
@@ -109,6 +109,7 @@ CONFIG: Dict[str, Any] = {
     "disambiguation": {"rules": []},
 }
 SCHEMA_RETRIEVER: Optional[SchemaRetriever] = None
+SQLGLOT_SCHEMA: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -133,7 +134,7 @@ def index() -> FileResponse:
 
 # --- Load catalog + config helpers ---
 def _load_catalog_and_config() -> Dict[str, Any]:
-    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER
+    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER, SQLGLOT_SCHEMA
     result: Dict[str, Any] = {"catalog": {}, "config": {}}
 
     try:
@@ -141,6 +142,7 @@ def _load_catalog_and_config() -> Dict[str, Any]:
         CATALOG_ERROR = None
         catalog_tables = len(CATALOG.tables)
         catalog_fks = len(CATALOG.fks)
+        SQLGLOT_SCHEMA = build_sqlglot_schema(CATALOG)
         print(f"[catalog] Loaded {catalog_tables} tables, {catalog_fks} FKs from schema {SCHEMA}")
         result["catalog"] = {
             "schema": SCHEMA,
