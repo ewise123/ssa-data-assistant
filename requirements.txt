@@ -8,3 +8,4 @@ openai==1.51.2
 SQLAlchemy==2.0.34
 psycopg2-binary==2.9.9
 PyYAML>=6.0
+chromadb>=0.5

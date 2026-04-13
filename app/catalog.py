@@ -223,6 +223,7 @@ def suggest_schema_snippet(
     config: Optional[Dict[str, Any]] = None,
     extra_synonyms: Optional[Dict[str, List[str]]] = None,
     disambiguation_rules: Optional[Dict[str, Any]] = None,
+    vector_scores: Optional[Dict[str, float]] = None,
 ) -> SchemaHint:
     q = question.lower()
     synonyms = _merge_synonyms(
@@ -281,8 +282,28 @@ def suggest_schema_snippet(
                 if table_name in scores:
                     scores[table_name] += 8
 
-    ranked_tables = [name for name, _ in sorted(scores.items(), key=lambda item: item[1], reverse=True)]
-    top = [name for name in ranked_tables if scores[name] > 0][:5]
+    # --- Hybrid scoring: merge keyword scores with vector similarity ---
+    if vector_scores:
+        max_keyword = max(scores.values()) if scores else 1.0
+        max_vector = max(vector_scores.values()) if vector_scores else 1.0
+        if max_keyword == 0:
+            max_keyword = 1.0
+        if max_vector == 0:
+            max_vector = 1.0
+
+        hybrid: Dict[str, float] = {}
+        all_table_names = set(scores.keys()) | set(vector_scores.keys())
+        for table_name in all_table_names:
+            kw_norm = scores.get(table_name, 0.0) / max_keyword
+            vec_norm = vector_scores.get(table_name, 0.0) / max_vector
+            hybrid[table_name] = 0.4 * kw_norm + 0.6 * vec_norm
+
+        ranked_tables = [name for name, _ in sorted(hybrid.items(), key=lambda item: item[1], reverse=True)]
+        top = [name for name in ranked_tables if hybrid[name] > 0][:5]
+    else:
+        ranked_tables = [name for name, _ in sorted(scores.items(), key=lambda item: item[1], reverse=True)]
+        top = [name for name in ranked_tables if scores[name] > 0][:5]
+
     if not top:
         top = ranked_tables[:5]
 

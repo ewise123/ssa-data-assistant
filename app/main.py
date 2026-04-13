@@ -90,6 +90,7 @@ from .config_loader import (
 from .db import describe_dsn, run_select
 from .sql_validator import validate_sql
 from .query_metrics import record_query, fetch_top_queries, fetch_problem_queries
+from .rag import SchemaRetriever
 
 # --- App setup ---
 app = FastAPI(title="SSA Data Assistant")
@@ -107,6 +108,7 @@ CONFIG: Dict[str, Any] = {
     "allowed": {},
     "disambiguation": {"rules": []},
 }
+SCHEMA_RETRIEVER: Optional[SchemaRetriever] = None
 
 # --- Startup diagnostics ---
 _dsn_info = describe_dsn()
@@ -131,7 +133,7 @@ def index() -> FileResponse:
 
 # --- Load catalog + config helpers ---
 def _load_catalog_and_config() -> Dict[str, Any]:
-    global CATALOG, CATALOG_ERROR, CONFIG
+    global CATALOG, CATALOG_ERROR, CONFIG, SCHEMA_RETRIEVER
     result: Dict[str, Any] = {"catalog": {}, "config": {}}
 
     try:
@@ -195,6 +197,24 @@ def _load_catalog_and_config() -> Dict[str, Any]:
             "disambiguation_rules": len(disambig.get("rules", [])),
             "error": None,
         }
+
+    # Initialize embedding-based schema retriever (if schema descriptions exist)
+    try:
+        retriever = SchemaRetriever()
+        if retriever.count == 0:
+            from pathlib import Path as _P
+            desc_path = _P("app/config/schema_descriptions.yaml")
+            if desc_path.exists():
+                n = retriever.index_from_yaml(desc_path)
+                print(f"[rag] Indexed {n} schema documents into ChromaDB")
+            else:
+                print("[rag] No schema_descriptions.yaml found; schema RAG disabled")
+        else:
+            print(f"[rag] Schema retriever loaded ({retriever.count} documents)")
+        SCHEMA_RETRIEVER = retriever
+    except Exception as exc:
+        print(f"[rag] Failed to initialize schema retriever: {exc}")
+        SCHEMA_RETRIEVER = None
 
     return result
 
@@ -276,17 +296,28 @@ def debug_catalog_reload(request: Request):
 def debug_router(q: str):
     if not CATALOG:
         return {"error": "catalog not loaded"}
+
+    vector_scores: Optional[Dict[str, float]] = None
+    if SCHEMA_RETRIEVER and SCHEMA_RETRIEVER.count > 0:
+        try:
+            rag_result = SCHEMA_RETRIEVER.retrieve_tables(q)
+            vector_scores = {t.name: t.vector_score for t in rag_result.tables}
+        except Exception:
+            pass
+
     hint = suggest_schema_snippet(
         q,
         CATALOG,
         config=CONFIG,
         disambiguation_rules=CONFIG.get("disambiguation"),
+        vector_scores=vector_scores,
     )
     return {
         "snippet": hint.snippet,
         "tables": hint.tables,
         "intents": hint.intents,
         "datasets": hint.disambiguation_datasets,
+        "vector_scores": vector_scores,
     }
 
 
@@ -343,11 +374,21 @@ def ask(req: AskRequest):
     final_status_for_log: Optional[str] = None
 
     if active_catalog:
+        # Get vector similarity scores from RAG if available
+        vector_scores: Optional[Dict[str, float]] = None
+        if SCHEMA_RETRIEVER and SCHEMA_RETRIEVER.count > 0:
+            try:
+                rag_result = SCHEMA_RETRIEVER.retrieve_tables(req.question)
+                vector_scores = {t.name: t.vector_score for t in rag_result.tables}
+            except Exception as rag_exc:
+                print(f"[rag] Schema retrieval failed, falling back to keywords: {rag_exc}")
+
         schema_hint = suggest_schema_snippet(
             req.question,
             active_catalog,
             config=CONFIG,
             disambiguation_rules=disambiguation,
+            vector_scores=vector_scores,
         )
 
     def _repair(reason: str, last_sql: str) -> Tuple[str, List[str], List[Dict[str, Any]]]:
