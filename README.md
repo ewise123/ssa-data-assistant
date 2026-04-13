@@ -79,6 +79,9 @@ FastAPI-powered, AI-assisted SQL exploration for the **Project_Master_Database**
 | `OPENAI_API_KEY`    | Server-side key used to call the OpenAI API              |
 | `PG_DSN_READONLY`   | PostgreSQL read-only DSN (Azure PG)                      |
 | `PG_SEARCH_PATH`    | Schema to introspect (default `Project_Master_Database`) |
+| `ENABLE_DEBUG_ENDPOINTS` | Set to `true` to expose `/debug/*` routes (default `false`) |
+| `ADMIN_TOKEN`       | Bearer token required for all `/admin/*` endpoints       |
+| `CATALOG_RELOAD_TOKEN` | _(Optional)_ additional bearer token for `/debug/catalog/reload` |
 | `AZURE_KEY_VAULT_URL` / `SSA_KEY_VAULT_SECRETS` | _(Optional)_ for Azure deployments leveraging Key Vault |
 
 > The app prefers environment-injected secrets. `.env` is only a developer convenience. For production, store secrets in Azure App Settings or Azure Key Vault. Secrets are never exposed to the browser.
@@ -133,6 +136,10 @@ See **[docs/ADD_NEW_DATA_WORKFLOW.md](docs/ADD_NEW_DATA_WORKFLOW.md)** for step-
 - `.env` is ignored by Git; ensure deployment platforms inject secrets via environment variables / Key Vault.
 - Consider adding reverse-proxy rules to block access to hidden files (`.env`, `.git`, etc.).
 - All SQL generated is validated to ensure it is a single `SELECT` statement before execution.
+- `/debug/*` endpoints are disabled by default. Set `ENABLE_DEBUG_ENDPOINTS=true` only in development.
+- `/admin/*` endpoints require a bearer token via the `ADMIN_TOKEN` env var. These endpoints are unavailable until the token is configured.
+- User feedback does not auto-promote queries to the golden example set. An admin must explicitly verify queries through the authenticated `/admin/verify-query` endpoint.
+- `clients_aliases.csv` and `schema_descriptions.yaml` contain business data and are gitignored. See `.example` files for format. Generate `schema_descriptions.yaml` via `python -m app.schema_enrichment`.
 
 ---
 

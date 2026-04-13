@@ -186,25 +186,18 @@ def record_feedback(
 ) -> bool:
     """Record user feedback on a query. Returns True if the query was found.
 
-    Side effects on positive feedback:
-    - Sets verified=1 (marks as golden query for RAG retrieval)
-    - If corrected_sql is provided, overwrites generated_sql in the record
+    Stores corrected_sql if provided (for later admin review) but does NOT
+    auto-verify. Use verify_query() via the admin endpoint to promote to golden.
     """
     with _conn() as conn:
         cur = conn.execute(
             "UPDATE query_log SET feedback = ?, feedback_comment = ? WHERE id = ?",
             (feedback, comment, query_id),
         )
-        # If user provided corrected SQL, store it and auto-verify
-        if corrected_sql and feedback == "positive":
+        if corrected_sql:
             conn.execute(
-                "UPDATE query_log SET generated_sql = ?, verified = 1 WHERE id = ?",
+                "UPDATE query_log SET generated_sql = ? WHERE id = ?",
                 (corrected_sql, query_id),
-            )
-        elif feedback == "positive":
-            conn.execute(
-                "UPDATE query_log SET verified = 1 WHERE id = ?",
-                (query_id,),
             )
         conn.commit()
         return cur.rowcount > 0

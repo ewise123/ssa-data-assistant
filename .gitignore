@@ -5,6 +5,11 @@ __pycache__/
 data/
 .serena/
 
+# Sensitive business data (deploy-time configs, not repo assets)
+app/config/clients_aliases.csv
+app/config/schema_descriptions.yaml
+docs/schema/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db

@@ -6,13 +6,34 @@ from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timezone
 from html import escape
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+# --- Auth & gating dependencies ---
+
+def _require_debug_enabled() -> None:
+    """FastAPI dependency: returns 404 when debug endpoints are disabled."""
+    if os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").lower() not in ("true", "1", "yes"):
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+def _require_admin_token(request: Request) -> None:
+    """FastAPI dependency: enforces bearer-token auth for admin endpoints."""
+    expected = os.getenv("ADMIN_TOKEN")
+    if not expected:
+        raise HTTPException(status_code=503, detail="Admin endpoints not configured")
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth_header.split(" ", 1)[1].strip()
+    if token != expected:
+        raise HTTPException(status_code=403, detail="Invalid token")
 
 
 def _load_from_key_vault() -> Dict[str, str]:
@@ -272,7 +293,7 @@ def _load_catalog_on_start() -> None:
     _load_catalog_and_config()
 
 # --- optional debug endpoint to confirm env is loaded ---
-@app.get("/debug/env", include_in_schema=False)
+@app.get("/debug/env", include_in_schema=False, dependencies=[Depends(_require_debug_enabled)])
 def debug_env():
     info = describe_dsn()
     return {
@@ -290,7 +311,7 @@ def debug_env():
     }
 
 
-@app.get("/debug/dns", include_in_schema=False)
+@app.get("/debug/dns", include_in_schema=False, dependencies=[Depends(_require_debug_enabled)])
 def debug_dns():
     info = describe_dsn()
     if not info:
@@ -319,7 +340,7 @@ def debug_dns():
     return response
 
 
-@app.post("/debug/catalog/reload", include_in_schema=False)
+@app.post("/debug/catalog/reload", include_in_schema=False, dependencies=[Depends(_require_debug_enabled)])
 def debug_catalog_reload(request: Request):
     expected_token = os.getenv("CATALOG_RELOAD_TOKEN")
     if expected_token:
@@ -340,7 +361,7 @@ def debug_catalog_reload(request: Request):
 
 
 # --- optional debug endpoint to see the router's schema snippet for a question ---
-@app.get("/debug/router", include_in_schema=False)
+@app.get("/debug/router", include_in_schema=False, dependencies=[Depends(_require_debug_enabled)])
 def debug_router(q: str):
     if not CATALOG:
         return {"error": "catalog not loaded"}
@@ -370,7 +391,7 @@ def debug_router(q: str):
     }
 
 
-@app.get("/debug/config", include_in_schema=False)
+@app.get("/debug/config", include_in_schema=False, dependencies=[Depends(_require_debug_enabled)])
 def debug_config():
     aliases = CONFIG.get("aliases", {})
     semantics = CONFIG.get("semantics", {})
@@ -589,7 +610,7 @@ def ask(req: AskRequest):
         raise
 
 
-@app.get("/debug/db", include_in_schema=False)
+@app.get("/debug/db", include_in_schema=False, dependencies=[Depends(_require_debug_enabled)])
 def debug_db():
     try:
         cols, rows = run_select('SELECT current_database() AS db, current_schema() AS sch')
@@ -637,7 +658,7 @@ def analytics_problem_queries(limit: int = 20):
     return {"items": rows}
 
 
-@app.get("/admin/problem-queries", include_in_schema=False)
+@app.get("/admin/problem-queries", include_in_schema=False, dependencies=[Depends(_require_admin_token)])
 def admin_problem_queries(limit: int = 50):
     limit = max(1, min(limit, 200))
     rows = fetch_problem_queries(limit=limit)
@@ -735,19 +756,19 @@ class VerifyRequest(BaseModel):
     verified: bool = True
 
 
-@app.get("/admin/golden-queries", include_in_schema=False)
+@app.get("/admin/golden-queries", include_in_schema=False, dependencies=[Depends(_require_admin_token)])
 def admin_golden_queries():
     """List all verified golden queries."""
     return fetch_verified_queries()
 
 
-@app.get("/admin/verifiable-queries", include_in_schema=False)
+@app.get("/admin/verifiable-queries", include_in_schema=False, dependencies=[Depends(_require_admin_token)])
 def admin_verifiable_queries(limit: int = 50):
     """List recent successful queries available for verification."""
     return fetch_verifiable_queries(limit=max(1, min(limit, 200)))
 
 
-@app.post("/admin/verify-query", include_in_schema=False)
+@app.post("/admin/verify-query", include_in_schema=False, dependencies=[Depends(_require_admin_token)])
 def admin_verify_query(req: VerifyRequest):
     """Mark a query as verified (golden) or unverified."""
     found = verify_query(req.query_id, req.verified)
@@ -774,7 +795,7 @@ class FeedbackRequest(BaseModel):
 
 @app.post("/feedback")
 def submit_feedback(req: FeedbackRequest):
-    """Record user feedback on a query result. Positive feedback auto-verifies as golden."""
+    """Record user feedback on a query result. Admin must verify separately via /admin/verify-query."""
     if req.feedback not in ("positive", "negative"):
         raise HTTPException(status_code=400, detail="feedback must be 'positive' or 'negative'")
 
@@ -789,14 +810,5 @@ def submit_feedback(req: FeedbackRequest):
     found = record_feedback(req.query_id, req.feedback, validated_correction, req.comment)
     if not found:
         raise HTTPException(status_code=404, detail=f"Query ID {req.query_id} not found")
-
-    # Positive feedback → sync to golden query store
-    if req.feedback == "positive" and GOLDEN_STORE:
-        verified = fetch_verified_queries()
-        for vq in verified:
-            if vq["id"] == req.query_id and vq["generated_sql"]:
-                GOLDEN_STORE.add(vq["question"], vq["generated_sql"])
-                print(f"[feedback] Added golden query from positive feedback (id={req.query_id})")
-                break
 
     return {"ok": True, "query_id": req.query_id, "feedback": req.feedback}
