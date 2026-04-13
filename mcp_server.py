@@ -43,6 +43,7 @@ from dotenv import load_dotenv
 
 # Load .env before any app imports (they read env vars at import time)
 ROOT = Path(__file__).resolve().parent
+os.chdir(ROOT)  # app modules use relative paths (app/config/, data/, etc.)
 load_dotenv(ROOT / ".env")
 
 import chromadb
@@ -86,7 +87,7 @@ def _stable_id(text: str) -> str:
 # Separate data dir from the FastAPI app's OpenAI-indexed collections.
 # ---------------------------------------------------------------------------
 
-_MCP_DATA_DIR = Path("data/chromadb_mcp")
+_MCP_DATA_DIR = ROOT / "data" / "chromadb_mcp"
 
 
 def _get_chroma() -> chromadb.ClientAPI:
