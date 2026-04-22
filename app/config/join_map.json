@@ -155,7 +155,7 @@
     },
     {
       "intent": "engagements_with_client",
-      "description": "Engagements or projects with client firm name. Use for any engagement/project query to always include the client name. Covers: projects started in a year, active engagements, engagement status, deliverables, case studies.",
+      "description": "Engagements or projects with client firm name. Use for any engagement/project query to always include the client name. Covers: projects started in a year, active engagements, engagement status, case studies. For deliverables, use the deliverables_with_engagement intent instead.",
       "tables": [
         "ClientEngagement",
         "ClientList"
@@ -171,6 +171,40 @@
         "ClientEngagement.status",
         "ClientList.client_firm_name",
         "ClientEngagement.start_date"
+      ]
+    },
+    {
+      "intent": "deliverables_with_engagement",
+      "description": "Deliverables for an engagement/project. Use when the user asks about deliverables, outputs, or what was delivered to a client.",
+      "tables": [
+        "Deliverable",
+        "ClientEngagement",
+        "ClientList"
+      ],
+      "joins": [
+        ["Deliverable.engagement_id", "ClientEngagement.engagement_id"],
+        ["ClientEngagement.client_id", "ClientList.client_id"]
+      ],
+      "canonical_filters": [
+        {
+          "table": "Deliverable",
+          "column": "name",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        },
+        {
+          "table": "Deliverable",
+          "column": "deliverable_type",
+          "preferred_filter": "ilike",
+          "pattern": "%{term}%"
+        }
+      ],
+      "result_defaults": [
+        "Deliverable.name AS deliverable_name",
+        "Deliverable.deliverable_type",
+        "Deliverable.delivered_date",
+        "ClientEngagement.project_name",
+        "ClientList.client_firm_name"
       ]
     },
     {

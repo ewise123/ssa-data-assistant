@@ -107,7 +107,6 @@
         "started",
         "team",
         "milestones",
-        "deliverables",
         "case study",
         "case studies"
       ],
@@ -117,6 +116,22 @@
         "ClientList",
         "ProjectTeam",
         "ConsolidatedResourceRoster"
+      ]
+    },
+    {
+      "if_contains": [
+        "deliverable",
+        "deliverables",
+        "delivered",
+        "outputs delivered",
+        "what did we deliver",
+        "what was delivered"
+      ],
+      "dataset": "engagements",
+      "prefer_tables": [
+        "Deliverable",
+        "ClientEngagement",
+        "ClientList"
       ]
     },
     {

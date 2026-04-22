@@ -10,12 +10,14 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ClientContact"(contact_id, contact_name, role_to_ssa, organization, internal_role, email, client_id)
       - "{SCHEMA_NAME}"."ClientContactResource"(contact_id, resource_id)
       - "{SCHEMA_NAME}"."ConsolidatedResourceRoster"(resource_id, name, resource_type, education, qualifications, previous_work_experience, role_rank, title_id)
-      - "{SCHEMA_NAME}"."ClientEngagement"(engagement_id, project_name, client_id, problem, approach, milestones_activities, deliverables, recurring_impact_annual, one_time_impact, outcomes_impact, notes, case_study, start_date, status, end_date, capex_baseline, current_spend_baseline)
+      - "{SCHEMA_NAME}"."ClientEngagement"(engagement_id, project_name, client_id, problem, approach, milestones_activities, recurring_impact_annual, one_time_impact, outcomes_impact, notes, case_study, start_date, status, end_date, capex_baseline, current_spend_baseline)
+      - "{SCHEMA_NAME}"."Deliverable"(deliverable_id, engagement_id, name, description, deliverable_type, delivered_date, notes)
       - "{SCHEMA_NAME}"."EngagementContact"(engagement_id, contact_id)
 
     Relationships:
       - "{SCHEMA_NAME}"."ClientContact".client_id → "{SCHEMA_NAME}"."ClientList".client_id
       - "{SCHEMA_NAME}"."ClientEngagement".client_id → "{SCHEMA_NAME}"."ClientList".client_id
+      - "{SCHEMA_NAME}"."Deliverable".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
       - "{SCHEMA_NAME}"."ClientContactResource".contact_id → "{SCHEMA_NAME}"."ClientContact".contact_id
       - "{SCHEMA_NAME}"."ClientContactResource".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
       - "{SCHEMA_NAME}"."EngagementContact".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
@@ -82,7 +84,8 @@ SCHEMA_HINTS = {
     # === DATASET: engagements / projects ===
     "engagements": f"""
     Tables:
-      - "{SCHEMA_NAME}"."ClientEngagement"(engagement_id, project_name, client_id, problem, approach, milestones_activities, deliverables, recurring_impact_annual, one_time_impact, outcomes_impact, notes, case_study, start_date, status, end_date, capex_baseline, current_spend_baseline)
+      - "{SCHEMA_NAME}"."ClientEngagement"(engagement_id, project_name, client_id, problem, approach, milestones_activities, recurring_impact_annual, one_time_impact, outcomes_impact, notes, case_study, start_date, status, end_date, capex_baseline, current_spend_baseline)
+      - "{SCHEMA_NAME}"."Deliverable"(deliverable_id, engagement_id, name, description, deliverable_type, delivered_date, notes)
       - "{SCHEMA_NAME}"."ProjectTeam"(team_id, engagement_id, resource_id, project_role, start_date, end_date)
       - "{SCHEMA_NAME}"."ProjectReviewForm"(review_form_id, name, engagement_id, specific_expertise)
       - "{SCHEMA_NAME}"."ReviewFormResource"(review_form_id, resource_id)
@@ -93,6 +96,7 @@ SCHEMA_HINTS = {
       - "{SCHEMA_NAME}"."ClientList"(client_id, client_firm_name)
 
     Relationships:
+      - "{SCHEMA_NAME}"."Deliverable".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
       - "{SCHEMA_NAME}"."ProjectTeam".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
       - "{SCHEMA_NAME}"."ProjectTeam".resource_id → "{SCHEMA_NAME}"."ConsolidatedResourceRoster".resource_id
       - "{SCHEMA_NAME}"."ProjectReviewForm".engagement_id → "{SCHEMA_NAME}"."ClientEngagement".engagement_id
@@ -106,6 +110,7 @@ SCHEMA_HINTS = {
 
     Notes:
       - Join to ClientList for client_firm_name on engagement views.
+      - Deliverables are in the separate "{SCHEMA_NAME}"."Deliverable" table (one-to-many). Join via engagement_id. Use ILIKE on name or deliverable_type to filter.
       - Use ILIKE for text filters and LIMIT 100 by default.
       - Baseline engagement finances: capex_baseline (capital expenditure) and current_spend_baseline (current spend).
     """,
