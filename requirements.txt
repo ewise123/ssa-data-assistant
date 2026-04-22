@@ -11,4 +11,4 @@ PyYAML>=6.0
 chromadb>=0.5
 sqlglot>=25.0
 pglast>=7.0
-mcp>=1.0.0
+mcp>=1.23.0

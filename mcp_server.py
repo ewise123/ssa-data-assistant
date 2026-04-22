@@ -43,7 +43,10 @@ from dotenv import load_dotenv
 
 # Load .env before any app imports (they read env vars at import time)
 ROOT = Path(__file__).resolve().parent
-os.chdir(ROOT)  # app modules use relative paths (app/config/, data/, etc.)
+# NOTE: os.chdir() is intentionally at module level because app.config_loader
+# and app.schema_enrichment use relative paths (app/config/, data/) during
+# import. Moving it to __main__ would break those imports.
+os.chdir(ROOT)
 load_dotenv(ROOT / ".env")
 
 import chromadb
@@ -99,10 +102,12 @@ _CHROMA = _get_chroma()
 
 
 def _index_schema(descriptions: dict[str, Any]) -> chromadb.Collection:
-    """Index table/column descriptions using local embeddings."""
+    """Index table/column descriptions using local embeddings.
+
+    Always upserts the current schema and removes stale entries so that
+    table/column changes are picked up without manual cache clearing.
+    """
     col = _CHROMA.get_or_create_collection("schema", metadata={"hnsw:space": "cosine"})
-    if col.count() > 0:
-        return col
 
     schema_name = descriptions.get("schema", "")
     tables = descriptions.get("tables", {})
@@ -133,14 +138,20 @@ def _index_schema(descriptions: dict[str, Any]) -> chromadb.Collection:
 
     if documents:
         col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        # Purge entries for removed tables/columns
+        existing = set(col.get(include=[])["ids"])
+        stale = list(existing - set(ids))
+        if stale:
+            col.delete(ids=stale)
     return col
 
 
 def _index_golden_queries(verified: list[dict[str, Any]]) -> chromadb.Collection:
-    """Index verified golden queries using local embeddings."""
+    """Index verified golden queries using local embeddings.
+
+    Always upserts and prunes so newly verified queries appear without restart.
+    """
     col = _CHROMA.get_or_create_collection("golden_queries", metadata={"hnsw:space": "cosine"})
-    if col.count() > 0:
-        return col
 
     documents, metadatas, ids = [], [], []
     seen_ids: set[str] = set()
@@ -159,14 +170,19 @@ def _index_golden_queries(verified: list[dict[str, Any]]) -> chromadb.Collection
 
     if documents:
         col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        existing = set(col.get(include=[])["ids"])
+        stale = list(existing - set(ids))
+        if stale:
+            col.delete(ids=stale)
     return col
 
 
 def _index_documentation(config: dict[str, Any]) -> chromadb.Collection:
-    """Index business rules / join hints from config using local embeddings."""
+    """Index business rules / join hints from config using local embeddings.
+
+    Always upserts and prunes so config changes propagate without restart.
+    """
     col = _CHROMA.get_or_create_collection("documentation", metadata={"hnsw:space": "cosine"})
-    if col.count() > 0:
-        return col
 
     documents, metadatas, ids = [], [], []
 
@@ -225,6 +241,10 @@ def _index_documentation(config: dict[str, Any]) -> chromadb.Collection:
 
     if documents:
         col.upsert(ids=ids, documents=documents, metadatas=metadatas)
+        existing = set(col.get(include=[])["ids"])
+        stale = list(existing - set(ids))
+        if stale:
+            col.delete(ids=stale)
     return col
 
 
@@ -240,7 +260,7 @@ try:
     CATALOG: Catalog | None = load_catalog(SCHEMA)
     SQLGLOT_SCHEMA = build_sqlglot_schema(CATALOG)
     _log(f"[mcp] Catalog: {len(CATALOG.tables)} tables, {len(CATALOG.fks)} FKs")
-except (CatalogLoadError, Exception) as exc:
+except Exception as exc:
     _log(f"[mcp] WARNING: Catalog unavailable: {exc}")
     CATALOG = None
     SQLGLOT_SCHEMA = None
@@ -526,9 +546,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SSA Data Assistant MCP Server")
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
     parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--host", type=str, default="127.0.0.1",
+                        help="Bind address for HTTP transport (default: 127.0.0.1)")
     args = parser.parse_args()
 
     if args.transport == "streamable-http":
-        mcp.run(transport="streamable-http", port=args.port)
+        mcp.run(transport="streamable-http", host=args.host, port=args.port)
     else:
         mcp.run(transport="stdio")

@@ -7,7 +7,8 @@
 CREATE TABLE "Project_Master_Database"."Deliverable" (
     deliverable_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     engagement_id       UUID NOT NULL
-        REFERENCES "Project_Master_Database"."ClientEngagement"(engagement_id),
+        REFERENCES "Project_Master_Database"."ClientEngagement"(engagement_id)
+        ON DELETE CASCADE,
     name                TEXT NOT NULL,
     description         TEXT,
     deliverable_type    TEXT,
