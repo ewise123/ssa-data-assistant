@@ -23,3 +23,32 @@ tables:
         sample_values: [Example A, Example B, Example C]
     relationships:
       - "example_id -> OtherTable.example_id"
+
+  Deliverable:
+    description: "Individual deliverables produced for a client engagement. One engagement can have many deliverables."
+    columns:
+      deliverable_id:
+        type: uuid
+        description: "Primary key."
+      engagement_id:
+        type: uuid
+        description: "FK to ClientEngagement.engagement_id."
+      name:
+        type: text
+        description: "Short name of the deliverable."
+        sample_values: [Cost Model, Final Report, Executive Dashboard]
+      description:
+        type: text
+        description: "Optional detailed description of the deliverable."
+      deliverable_type:
+        type: text
+        description: "Category of deliverable."
+        sample_values: [Report, Model, Dashboard, Presentation, Tool]
+      delivered_date:
+        type: date
+        description: "Date the deliverable was provided to the client."
+      notes:
+        type: text
+        description: "Additional context or remarks."
+    relationships:
+      - "engagement_id -> ClientEngagement.engagement_id"

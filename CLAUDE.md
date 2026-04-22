@@ -28,6 +28,9 @@ User (browser) → Static SPA (index.html + Tailwind + Anime.js)
 - **Python 3.11+**, FastAPI, Pydantic
 - **psycopg** (v3) for PostgreSQL (read-only connections)
 - **OpenAI** Chat Completions (default model: `gpt-4.1-mini`, configurable via `OPENAI_MODEL` env var)
+- **OpenAI** Embeddings (`text-embedding-3-small`) for RAG retrieval
+- **ChromaDB** for vector storage (schema, golden queries, documentation)
+- **MCP** (Model Context Protocol) server for Claude-native SQL generation
 - **SQLite** for local analytics (`data/query_metrics.db`)
 - **Static frontend**: single `index.html` with Tailwind CSS + Anime.js
 - No ORM — raw parameterized SQL only
@@ -36,13 +39,16 @@ User (browser) → Static SPA (index.html + Tailwind + Anime.js)
 
 | File | Purpose |
 |------|---------|
+| `mcp_server.py` | MCP server: exposes schema, golden queries, and query execution as tools for Claude |
 | `app/main.py` | FastAPI app, all routes, startup logic, env loading |
 | `app/ai_sql.py` | OpenAI prompt construction, SQL generation + repair |
 | `app/catalog.py` | DB introspection, schema routing, synonym matching |
 | `app/db.py` | PostgreSQL connection management, `run_select()` |
-| `app/sql_validator.py` | SQL safety validation (SELECT-only, keyword blocklist) |
+| `app/sql_validator.py` | SQL safety validation (5-layer AST pipeline) |
+| `app/rag.py` | ChromaDB RAG: SchemaRetriever, GoldenQueryStore, DocumentationStore |
 | `app/config_loader.py` | Loads CSV/JSON config files from `app/config/` |
 | `app/schema_hints.py` | Static dataset-level schema hints (fallback for catalog) |
+| `app/schema_enrichment.py` | LLM-generated schema descriptions (M-Schema YAML) |
 | `app/query_metrics.py` | SQLite analytics: record queries, fetch top/problem queries |
 | `app/static/index.html` | Single-page frontend (759 lines, self-contained) |
 
@@ -94,6 +100,49 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `/debug/router?q=...` | GET | Schema routing debug (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
 | `/debug/config` | GET | Config summary counts (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
 | `/debug/catalog/reload` | POST | Hot-reload catalog + config (requires `ENABLE_DEBUG_ENDPOINTS=true`) |
+
+## MCP Server
+
+The MCP server (`mcp_server.py`) exposes the same schema context, golden queries, and query execution as MCP tools — letting Claude generate SQL directly instead of routing through OpenAI.
+
+### MCP Tools
+
+| Tool | Purpose |
+|------|---------|
+| `get_schema(question)` | Hybrid vector + keyword schema retrieval with M-Schema descriptions |
+| `get_golden_examples(question, k=3)` | Retrieve similar verified (question, SQL) pairs from ChromaDB |
+| `execute_query(sql)` | Validate through 5-layer pipeline and execute read-only against PostgreSQL |
+| `list_tables()` | List all tables with descriptions and column counts |
+
+### Running the MCP Server
+
+```bash
+# stdio transport (for Claude Desktop / Claude Code)
+python mcp_server.py
+
+# HTTP transport (for remote access)
+python mcp_server.py --transport streamable-http --port 8001
+```
+
+### Claude Code Configuration
+
+Add to `~/.claude/settings.json`:
+```json
+{
+  "mcpServers": {
+    "ssa-data-assistant": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp_server.py"],
+      "env": {
+        "PG_DSN_READONLY": "...",
+        "PG_SEARCH_PATH": "Project_Master_Database"
+      }
+    }
+  }
+}
+```
+
+The MCP server uses local embeddings (ChromaDB's built-in `all-MiniLM-L6-v2` via onnxruntime) — no OpenAI key or external API calls required. Vector data is stored separately in `data/chromadb_mcp/`.
 
 ## Coding Conventions
 

@@ -21,7 +21,6 @@ ClientEngagement,project_name,text,ilike,%{term}%,
 ClientEngagement,problem,text,ilike,%{term}%,
 ClientEngagement,approach,text,ilike,%{term}%,
 ClientEngagement,milestones_activities,text,ilike,%{term}%,
-ClientEngagement,deliverables,text,ilike,%{term}%,
 ClientEngagement,recurring_impact_annual,numeric,between,,annual recurring impact (USD)
 ClientEngagement,one_time_impact,numeric,between,,one-time impact (USD)
 ClientEngagement,outcomes_impact,text,ilike,%{term}%,
@@ -104,6 +103,13 @@ CourseResource,course_id,id,=,,FK -> TrainingLearning.course_id
 CourseResource,resource_id,id,=,,FK -> ConsolidatedResourceRoster.resource_id
 EngagementCapability,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
 EngagementCapability,capability_id,id,=,,FK -> FirmCapabilities.capability_id
+Deliverable,deliverable_id,id,=,,primary key
+Deliverable,engagement_id,id,=,,FK -> ClientEngagement.engagement_id
+Deliverable,name,text,ilike,%{term}%,deliverable name (e.g. Cost Model)
+Deliverable,description,text,ilike,%{term}%,optional detail
+Deliverable,deliverable_type,categorical,ilike,%{term}%,"e.g., Report, Model, Dashboard, Presentation, Tool"
+Deliverable,delivered_date,date,between,,date delivered to client
+Deliverable,notes,text,ilike,%{term}%,
 PERoster,pe_firm_id,id,=,,primary key
 PERoster,pe_firm_name,text,ilike,%{term}%,
 PERoster,fund_size,text,ilike,%{term}%,
