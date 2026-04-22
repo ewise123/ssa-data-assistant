@@ -5,6 +5,13 @@ __pycache__/
 data/
 .serena/
 
+# Editor / IDE / OS cruft
+.claude/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
 # Sensitive business data (deploy-time configs, not repo assets)
 app/config/clients_aliases.csv
 app/config/schema_descriptions.yaml
