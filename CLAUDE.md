@@ -185,6 +185,6 @@ There are currently **no automated tests** in this project. The `tests/` directo
 
 ## Git Conventions
 
-- Branch: `master` is the main branch
+- Branch: `main` is the main branch
 - `.gitignore`: `.venv/`, `__pycache__/`, `*.pyc`, `.env`, `data/`
 - `data/query_metrics.db` is generated at runtime, never committed
